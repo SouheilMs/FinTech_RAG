@@ -1,0 +1,57 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: ${APP_NAME:finassist-mini}
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_SIZE_MB:25}MB
+      max-request-size: ${MAX_UPLOAD_SIZE_MB:25}MB
+  ai:
+    ollama:
+      base-url: ${OLLAMA_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${LLM_MODEL:tinyllama}
+      embedding:
+        options:
+          model: ${EMBEDDING_MODEL:nomic-embed-text}
+
+finassist:
+  app-name: ${APP_NAME:finassist-mini}
+  app-version: ${APP_VERSION:0.1.0}
+  docs-directory: ${DOCS_DIRECTORY:data/documents}
+  vector-store-file: ${VECTOR_STORE_FILE:data/vector-store.json}
+  retrieval-k: ${RETRIEVAL_K:3}
+  chunk-size-words: ${CHUNK_SIZE_WORDS:350}
+  chunk-overlap-words: ${CHUNK_OVERLAP_WORDS:35}
+  llm-timeout-seconds: ${LLM_TIMEOUT_SECONDS:90}
+  max-prompt-chars: ${MAX_PROMPT_CHARS:6000}
+  max-upload-size-mb: ${MAX_UPLOAD_SIZE_MB:25}
+  upload-write-chunk-bytes: ${UPLOAD_WRITE_CHUNK_BYTES:1048576}
+  upload-max-concurrency: ${UPLOAD_MAX_CONCURRENCY:1}
+  chat-max-concurrency: ${CHAT_MAX_CONCURRENCY:1}
+  admission-wait-seconds: ${ADMISSION_WAIT_SECONDS:1.0}
+
+logging:
+  level:
+    com.finassistmini: INFO
+    org.springdoc: DEBUG
+    org.springframework.web: DEBUG
+    org.springframework.web.servlet: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+    swagger-ui:
+      enabled: true
+      path: /swagger-ui.html
+      config-url: /v3/api-docs/swagger-config
+      url: /v3/api-docs
+      disable-swagger-default-url: true
+    override-with-generic-response: false
+    packages-to-scan: com.finassistmini.web
+
+debug: true
