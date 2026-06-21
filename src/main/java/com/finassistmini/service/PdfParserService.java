@@ -4,6 +4,8 @@ import com.finassistmini.model.ParsedPage;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -14,21 +16,25 @@ import java.util.List;
 @Service
 public class PdfParserService {
 
-    public List<ParsedPage> parsePdf(Path filePath) {
-        try (PDDocument document = Loader.loadPDF(filePath.toFile())) {
+    private static final Logger log = LoggerFactory.getLogger(PdfParserService.class);
+
+    public List<ParsedPage> parse(Path pdfPath) throws IOException {
+        List<ParsedPage> pages = new ArrayList<>();
+
+        try (PDDocument doc = Loader.loadPDF(pdfPath.toFile())) {
             PDFTextStripper stripper = new PDFTextStripper();
-            List<ParsedPage> pages = new ArrayList<>();
-            for (int pageIndex = 1; pageIndex <= document.getNumberOfPages(); pageIndex++) {
-                stripper.setStartPage(pageIndex);
-                stripper.setEndPage(pageIndex);
-                String text = stripper.getText(document).trim();
+            int total = doc.getNumberOfPages();
+
+            for (int i = 1; i <= total; i++) {
+                stripper.setStartPage(i);
+                stripper.setEndPage(i);
+                String text = stripper.getText(doc).strip();
                 if (!text.isBlank()) {
-                    pages.add(new ParsedPage(pageIndex, text));
+                    pages.add(new ParsedPage(i, text));
                 }
             }
-            return pages;
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to parse PDF '" + filePath.getFileName() + "'.", ex);
         }
+        log.info("Parsed {} non-empty pages from '{}'", pages.size(), pdfPath.getFileName());
+        return pages;
     }
 }

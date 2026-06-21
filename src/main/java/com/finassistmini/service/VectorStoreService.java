@@ -1,10 +1,12 @@
 package com.finassistmini.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.finassistmini.config.FinassistProperties;
-import com.finassistmini.model.DocumentChunk;
+import com.finassistmini.config.AppProperties;
 import com.finassistmini.model.RetrievedChunk;
+import com.finassistmini.model.VectorEntry;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -13,144 +15,99 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 @Service
 public class VectorStoreService {
 
-    private final Path storeFile;
-    private final ObjectMapper objectMapper;
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-    private final List<VectorRecord> records;
+    private static final Logger log = LoggerFactory.getLogger(VectorStoreService.class);
 
-    public VectorStoreService(FinassistProperties properties, ObjectMapper objectMapper) {
-        this.storeFile = properties.vectorStoreFile();
+    private final AppProperties props;
+    private final ObjectMapper objectMapper;
+    private final CopyOnWriteArrayList<VectorEntry> store = new CopyOnWriteArrayList<>();
+    private final Object writeLock = new Object();
+
+    public VectorStoreService(AppProperties props, ObjectMapper objectMapper) {
+        this.props = props;
         this.objectMapper = objectMapper;
-        this.records = loadRecords();
     }
 
-    public void upsertChunks(List<DocumentChunk> chunks, List<List<Double>> embeddings) {
-        if (chunks.isEmpty()) {
+    @PostConstruct
+    public void load() {
+        Path path = Path.of(props.vectorStoreFile());
+        if (!Files.exists(path)) {
+            log.info("No vector store found at '{}' — starting fresh", path);
             return;
         }
-        if (chunks.size() != embeddings.size()) {
-            throw new IllegalArgumentException("Chunks and embeddings must have the same size.");
-        }
-
-        lock.writeLock().lock();
         try {
-            for (int i = 0; i < chunks.size(); i++) {
-                DocumentChunk chunk = chunks.get(i);
-                records.removeIf(record -> record.chunkId().equals(chunk.chunkId()));
-                records.add(VectorRecord.from(chunk, embeddings.get(i)));
-            }
-            persistRecords();
-        } finally {
-            lock.writeLock().unlock();
+            List<VectorEntry> entries = objectMapper.readValue(
+                    path.toFile(),
+                    objectMapper.getTypeFactory()
+                            .constructCollectionType(List.class, VectorEntry.class));
+            store.addAll(entries);
+            log.info("Loaded {} vector entries from '{}'", store.size(), path);
+        } catch (IOException e) {
+            log.warn("Could not load vector store: {}", e.getMessage());
         }
     }
 
-    public boolean documentExists(String documentHash) {
-        lock.readLock().lock();
+    public void addAll(List<VectorEntry> entries) {
+        synchronized (writeLock) {
+            store.addAll(entries);
+            persist();
+        }
+    }
+
+    public void removeByDocumentId(String documentId) {
+        synchronized (writeLock) {
+            store.removeIf(e -> documentId.equals(e.getDocumentId()));
+            persist();
+            log.info("Removed vectors for document '{}'", documentId);
+        }
+    }
+
+    public List<RetrievedChunk> search(float[] queryEmbedding, int k) {
+        return store.stream()
+                .map(entry -> {
+                    double distance = 1.0 - cosineSimilarity(queryEmbedding, entry.getEmbedding());
+                    return new RetrievedChunk(
+                            entry.getChunkId(),
+                            entry.getDocumentId(),
+                            entry.getDocumentName(),
+                            entry.getPageNumber(),
+                            entry.getText(),
+                            distance);
+                })
+                .sorted(Comparator.comparingDouble(RetrievedChunk::distance))
+                .limit(k)
+                .collect(Collectors.toList());
+    }
+
+    public int size() {
+        return store.size();
+    }
+
+    private void persist() {
         try {
-            return records.stream().anyMatch(record -> documentHash.equals(record.documentHash()));
-        } finally {
-            lock.readLock().unlock();
+            Path path = Path.of(props.vectorStoreFile());
+            Files.createDirectories(path.getParent());
+            objectMapper.writerWithDefaultPrettyPrinter()
+                    .writeValue(path.toFile(), new ArrayList<>(store));
+        } catch (IOException e) {
+            log.error("Failed to persist vector store: {}", e.getMessage());
         }
     }
 
-    public List<RetrievedChunk> search(List<Double> queryEmbedding, int topK) {
-        lock.readLock().lock();
-        try {
-            return records.stream()
-                    .map(record -> record.toRetrievedChunk(cosineDistance(queryEmbedding, record.embedding())))
-                    .sorted(Comparator.comparingDouble(RetrievedChunk::distance))
-                    .limit(topK)
-                    .toList();
-        } finally {
-            lock.readLock().unlock();
+    private static double cosineSimilarity(float[] a, float[] b) {
+        if (a == null || b == null || a.length != b.length) return 0.0;
+        double dot = 0, normA = 0, normB = 0;
+        for (int i = 0; i < a.length; i++) {
+            dot   += (double) a[i] * b[i];
+            normA += (double) a[i] * a[i];
+            normB += (double) b[i] * b[i];
         }
-    }
-
-    public void deleteDocument(String documentId) {
-        lock.writeLock().lock();
-        try {
-            records.removeIf(record -> documentId.equals(record.documentId()));
-            persistRecords();
-        } finally {
-            lock.writeLock().unlock();
-        }
-    }
-
-    private List<VectorRecord> loadRecords() {
-        if (!Files.exists(storeFile)) {
-            return new ArrayList<>();
-        }
-        try {
-            return new ArrayList<>(objectMapper.readValue(storeFile.toFile(), new TypeReference<List<VectorRecord>>() {
-            }));
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to load vector store file '" + storeFile + "'.", ex);
-        }
-    }
-
-    private void persistRecords() {
-        try {
-            Path parent = storeFile.toAbsolutePath().normalize().getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(storeFile.toFile(), records);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to persist vector store file '" + storeFile + "'.", ex);
-        }
-    }
-
-    private double cosineDistance(List<Double> left, List<Double> right) {
-        int dimensions = Math.min(left.size(), right.size());
-        if (dimensions == 0) {
-            return 1.0;
-        }
-        double dot = 0.0;
-        double leftNorm = 0.0;
-        double rightNorm = 0.0;
-        for (int i = 0; i < dimensions; i++) {
-            double a = left.get(i);
-            double b = right.get(i);
-            dot += a * b;
-            leftNorm += a * a;
-            rightNorm += b * b;
-        }
-        if (leftNorm == 0.0 || rightNorm == 0.0) {
-            return 1.0;
-        }
-        return 1.0 - (dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm)));
-    }
-
-    private record VectorRecord(
-            String chunkId,
-            String documentId,
-            String documentHash,
-            String documentName,
-            int pageNumber,
-            String text,
-            List<Double> embedding
-    ) {
-
-        static VectorRecord from(DocumentChunk chunk, List<Double> embedding) {
-            return new VectorRecord(
-                    chunk.chunkId(),
-                    chunk.documentId(),
-                    chunk.documentId(),
-                    chunk.documentName(),
-                    chunk.pageNumber(),
-                    chunk.text(),
-                    embedding
-            );
-        }
-
-        RetrievedChunk toRetrievedChunk(double distance) {
-            return new RetrievedChunk(chunkId, documentId, documentName, pageNumber, text, distance);
-        }
+        double denom = Math.sqrt(normA) * Math.sqrt(normB);
+        return denom == 0.0 ? 0.0 : dot / denom;
     }
 }
