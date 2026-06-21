@@ -2,7 +2,7 @@
 
 `finassist-mini` is an educational Retrieval-Augmented Generation (RAG) backend for financial PDF question answering.
 
-The backend has been migrated from Python + FastAPI to Java 21 + Spring Boot 3.x + Spring AI. It keeps the same API shape and workflow:
+The backend has been build with Java 17 + Spring Boot 3.3.5 + Spring AI:
 
 1. Upload PDF documents.
 2. Parse page text.
@@ -31,10 +31,6 @@ finassist-mini/
 ```
 
 ## API Endpoints
-
-### Health
-
-- `GET /health`
 
 ### Documents
 
@@ -72,7 +68,7 @@ Response:
 
 ## Setup
 
-Install Java 21 and Maven, then make sure Ollama is running:
+Install Java 17 and Maven, then make sure Ollama is running:
 
 ```bash
 ollama pull tinyllama
@@ -92,6 +88,6 @@ Run the API:
 mvn spring-boot:run
 ```
 
-Open the API at `http://127.0.0.1:8000`.
+Open the API at `http://127.0.0.1:8080`.
 
-Spring AI 1.0.9 is used with the Ollama starter. The local vector store is intentionally file-backed so this mini project keeps the same single-process local development profile as the original FastAPI app.
+Spring AI 1.0.0 is used with the Ollama starter.
