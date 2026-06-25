@@ -23,15 +23,12 @@ import java.util.stream.Collectors;
 public class ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(ChatService.class);
-    private final EmbeddingModel embeddingModel;
     private final ChatModel chatModel;
     private final VectorStoreService vectorStore;
     private final AppProperties props;
     private final Semaphore semaphore;
 
-    public ChatService( EmbeddingModel embeddingModel, ChatModel chatModel,
-            VectorStoreService vectorStore, AppProperties props) {
-        this.embeddingModel = embeddingModel;
+    public ChatService( ChatModel chatModel, VectorStoreService vectorStore, AppProperties props) {
         this.chatModel = chatModel;
         this.vectorStore = vectorStore;
         this.props = props;
@@ -46,8 +43,8 @@ public class ChatService {
                     "Chat server is busy — please retry shortly");
         }
         try {
-            float[] queryEmbedding = embeddingModel.embed(question);
-            List<RetrievedChunk> chunks = vectorStore.search(queryEmbedding, props.retrievalK());
+            // Search directly with query text - Spring AI handles embedding
+            List<RetrievedChunk> chunks = vectorStore.search(question, props.retrievalK());
             log.debug("Retrieved {} chunks for question: '{}'", chunks.size(), question);
             if (chunks.isEmpty()) {
                 return new ChatResponse(

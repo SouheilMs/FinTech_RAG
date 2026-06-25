@@ -5,6 +5,23 @@ spring:
   application:
     name: ${APP_NAME:finassist-mini}
 
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/fintech_rag}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
   ai:
     ollama:
       base-url: ${OLLAMA_URL:http://localhost:11434}
@@ -14,6 +31,14 @@ spring:
         model: ${LLM_MODEL:tinyllama}
         options:
           num-predict: 512
+
+  vectorstore:
+    pgvector:
+      index-type: HNSW
+      distance-type: COSINE_DISTANCE
+      similarity-threshold: 0.5
+      dimensions: 768
+      initialize-schema: true
 
   servlet:
     multipart:
@@ -27,7 +52,6 @@ spring:
 
 app:
   docs-directory: ${DOCS_DIRECTORY:data/documents}
-  vector-store-file: ${VECTOR_STORE_FILE:data/vector-store.json}
   retrieval-k: ${RETRIEVAL_K:3}
   chunk-size-words: ${CHUNK_SIZE_WORDS:350}
   chunk-overlap-words: ${CHUNK_OVERLAP_WORDS:35}
@@ -45,3 +69,8 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
     display-request-duration: true
+
+logging:
+  level:
+    org.springframework.ai: INFO
+    com.finassistmini: DEBUG
