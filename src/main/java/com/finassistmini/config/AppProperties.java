@@ -5,7 +5,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app")
 public record AppProperties(
         String docsDirectory,
-        String vectorStoreFile,
         int retrievalK,
         int chunkSizeWords,
         int chunkOverlapWords,

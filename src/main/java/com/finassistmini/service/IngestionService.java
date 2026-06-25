@@ -4,7 +4,7 @@ import com.finassistmini.config.AppProperties;
 import com.finassistmini.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +23,6 @@ public class IngestionService {
     private final ChunkingService chunker;
     private final VectorStoreService vectorStore;
     private final DocumentService documentService;
-    private final EmbeddingModel embeddingModel;
     private final AppProperties props;
     private final Executor executor;
     private final ConcurrentHashMap<String, IngestionJob> jobs = new ConcurrentHashMap<>();
@@ -34,7 +33,6 @@ public class IngestionService {
             ChunkingService chunker,
             VectorStoreService vectorStore,
             DocumentService documentService,
-            EmbeddingModel embeddingModel,
             AppProperties props,
             @Qualifier("ingestionExecutor") Executor executor) {
 
@@ -42,7 +40,6 @@ public class IngestionService {
         this.chunker = chunker;
         this.vectorStore = vectorStore;
         this.documentService = documentService;
-        this.embeddingModel = embeddingModel;
         this.props = props;
         this.executor = executor;
         this.semaphore = new Semaphore(props.uploadMaxConcurrency(), true);
@@ -87,18 +84,14 @@ public class IngestionService {
                     job.getDocumentId(), job.getDocumentName(), pages);
 
             transition(job, JobStatus.RUNNING,
-                    "Embedding %d chunks via Ollama…".formatted(chunks.size()));
-            List<float[]> embeddings = batchEmbed(
-                    chunks.stream().map(DocumentChunk::text).collect(Collectors.toList()));
+                    "Storing %d chunks in vector database…".formatted(chunks.size()));
+            // Convert chunks to Spring AI Documents
+            List<Document> documents = chunks.stream()
+                    .map(chunk -> createDocument(chunk))
+                    .collect(Collectors.toList());
+            // Store embeddings in pgvector (Spring AI handles embedding generation)
+            vectorStore.addAll(documents);
 
-            List<VectorEntry> entries = new ArrayList<>();
-            for (int i = 0; i < chunks.size(); i++) {
-                DocumentChunk c = chunks.get(i);
-                entries.add(new VectorEntry(
-                        c.chunkId(), c.documentId(), c.documentName(),
-                        c.pageNumber(), c.text(), embeddings.get(i)));
-            }
-            vectorStore.addAll(entries);
 
             documentService.markIndexed(job.getDocumentId(), pages.size(), chunks.size());
             transition(job, JobStatus.COMPLETED,
@@ -116,17 +109,14 @@ public class IngestionService {
         }
     }
 
-    private List<float[]> batchEmbed(List<String> texts) {
-        try {
-            return embeddingModel.embed(texts);
-        } catch (Exception ex) {
-            // Some Ollama builds do not support multi-input requests; fall back.
-            log.warn("Batch embedding failed ({}), falling back to sequential", ex.getMessage());
-            return texts.stream()
-                    .map(embeddingModel::embed)
-                    .collect(Collectors.toList());
+    private Document createDocument(DocumentChunk chunk) {
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("chunkId", chunk.chunkId());
+        metadata.put("documentId", chunk.documentId());
+        metadata.put("documentName", chunk.documentName());
+        metadata.put("pageNumber", chunk.pageNumber());
+        return new Document(chunk.text(), metadata);
         }
-    }
 
     private void transition(IngestionJob job, JobStatus status, String message) {
         job.setStatus(status);
