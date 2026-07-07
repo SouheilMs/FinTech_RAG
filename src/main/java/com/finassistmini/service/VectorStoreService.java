@@ -8,6 +8,7 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,19 +28,24 @@ public class VectorStoreService {
         }
 
     public void removeByDocumentId(String documentId) {
-        // Spring AI VectorStore deletes by filtering metadata
-        vectorStore.delete(
-                vectorStore.similaritySearch(
-                                SearchRequest.builder()
-                                        .query("*")
-                                        .topK(Integer.MAX_VALUE)
-                                        .build())
-                .stream()
-                .filter(doc -> documentId.equals(doc.getMetadata().get("documentId")))
-                .map(doc -> (String) doc.getMetadata().get("id"))
-                .collect(Collectors.toList())
-                );
-        log.info("Removed vectors for document '{}'", documentId);
+        List<Document> docs = vectorStore.similaritySearch(
+                SearchRequest.builder()
+                        .query("*")
+                        .topK(1000)
+                        .build()
+        );
+
+        List<String> ids = docs.stream()
+                .filter(d -> documentId.equals(d.getMetadata().get("documentId")))
+                .map(Document::getId)   // 👈 IMPORTANT FIX
+                .filter(Objects::nonNull)
+                .toList();
+
+        if (!ids.isEmpty()) {
+            vectorStore.delete(ids);
+        }
+
+        log.info("Removed {} vectors for document '{}'", ids.size(), documentId);
     }
 
     public List<RetrievedChunk> search(String query, int k) {
@@ -47,6 +53,7 @@ public class VectorStoreService {
                 SearchRequest.builder()
                         .query(query)
                         .topK(k)
+                        .similarityThreshold(0.65)
                         .build());
                 log.debug("Retrieved {} chunks for query: '{}'", results.size(), query);
                 return results.stream()
