@@ -1,0 +1,53 @@
+{
+  "realm": "finassist",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 86400,
+  "clients": [
+    {
+      "clientId": "finassist-app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3000/*"
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      { "name": "ADMIN", "description": "Full access — upload, manage, chat" },
+      { "name": "USER",  "description": "Chat only" }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin",
+      "email": "admin@finassist.com",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "admin123", "temporary": false }
+      ],
+      "realmRoles": ["ADMIN"]
+    },
+    {
+      "username": "user",
+      "email": "user@finassist.com",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "user123", "temporary": false }
+      ],
+      "realmRoles": ["USER"]
+    }
+  ]
+}
