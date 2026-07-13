@@ -1,8 +1,7 @@
+import { useState, useCallback } from 'react'
 import { chatService } from '@/services/chat.service'
-import type { ChatMessage, ChatResponse } from '@/types'
-import {useCallback, useState} from "react";
+import type { ChatMessage } from '@/types'
 
-// crypto.randomUUID() is available in all modern browsers
 const newId = () => crypto.randomUUID()
 
 export function useChat() {
@@ -12,49 +11,72 @@ export function useChat() {
 
   const sendMessage = useCallback(async (question: string) => {
     if (!question.trim() || isThinking) return
-
     setError(null)
 
-    // 1. Append user bubble immediately
-    const userMsg: ChatMessage = {
+    // 1 ── Append user bubble immediately
+    setMessages(prev => [...prev, {
       id:        newId(),
       role:      'user',
       content:   question.trim(),
       timestamp: new Date(),
-    }
-    setMessages((prev) => [...prev, userMsg])
+    }])
 
-    // 2. Append placeholder AI bubble
-    const aiPlaceholderId = newId()
-    setMessages((prev) => [
-      ...prev,
-      { id: aiPlaceholderId, role: 'assistant', content: '', timestamp: new Date(), isLoading: true },
-    ])
+    const aiId = newId()
+    setMessages(prev => [...prev, {
+      id:        aiId,
+      role:      'assistant',
+      content:   '',
+      sources:   [],
+      timestamp: new Date(),
+      isLoading: true,
+    }])
     setThinking(true)
 
     try {
-      const response: ChatResponse = await chatService.sendQuestion({ question: question.trim() })
+      await chatService.streamQuestion(question.trim(), {
 
-      // 3. Replace placeholder with real answer
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiPlaceholderId
-            ? { ...m, content: response.answer, sources: response.sources, isLoading: false }
-            : m,
-        ),
-      )
-    } catch (err: unknown) {
-      const msg = (err as { message?: string }).message ?? 'Failed to get a response'
+        onToken: (token) => {
+          setMessages(prev =>
+              prev.map(m => m.id === aiId
+                  ? { ...m, content: m.content + token }
+                  : m
+              )
+          )
+        },
+
+        onSources: (sources) => {
+          setMessages(prev =>
+              prev.map(m => m.id === aiId ? { ...m, sources } : m)
+          )
+        },
+
+        onDone: () => {
+          setMessages(prev =>
+              prev.map(m => m.id === aiId ? { ...m, isLoading: false } : m)
+          )
+          setThinking(false)
+        },
+
+        onError: (msg) => {
+          setMessages(prev =>
+              prev.map(m => m.id === aiId
+                  ? { ...m, content: `⚠️ ${msg}`, isLoading: false }
+                  : m
+              )
+          )
+          setError(msg)
+          setThinking(false)
+        },
+      })
+    } catch (e: unknown) {
+      const msg = (e as { message?: string }).message ?? 'Streaming failed'
       setError(msg)
-      // Replace placeholder with error state
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiPlaceholderId
-            ? { ...m, content: `⚠️ ${msg}`, isLoading: false }
-            : m,
-        ),
+      setMessages(prev =>
+          prev.map(m => m.id === aiId
+              ? { ...m, content: `⚠️ ${msg}`, isLoading: false }
+              : m
+          )
       )
-    } finally {
       setThinking(false)
     }
   }, [isThinking])

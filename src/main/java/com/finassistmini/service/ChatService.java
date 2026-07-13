@@ -12,6 +12,8 @@ import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -96,5 +98,55 @@ public class ChatService {
                 Question: %s
 
                 Answer:""".formatted(context, question);
+    }
+
+    public record StreamingContext(List<SourceReference> sources, Flux<String> tokens) {}
+
+    public StreamingContext stream(String question) throws InterruptedException {
+        long waitMs  = (long) (props.admissionWaitSeconds() * 1000);
+        boolean acquired = semaphore.tryAcquire(waitMs, TimeUnit.MILLISECONDS);
+        if (!acquired) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Chat server is busy — please retry shortly");
+        }
+        try {
+            List<RetrievedChunk> chunks = vectorStore.search(question, props.retrievalK());
+            log.debug("Retrieved {} chunks for streaming question: '{}'", chunks.size(), question);
+
+            if (chunks.isEmpty()) {
+                semaphore.release();
+                return new StreamingContext(
+                        List.of(),
+                        Flux.just("I couldn't find relevant information in the uploaded documents.")
+                );
+            }
+
+            String context = buildContext(chunks);
+            String prompt  = buildPrompt(question, context);
+
+            List<SourceReference> sources = chunks.stream()
+                    .map(c -> new SourceReference(c.documentName(), c.pageNumber()))
+                    .collect(Collectors.collectingAndThen(
+                            Collectors.toCollection(LinkedHashSet::new),
+                            ArrayList::new));
+
+            Flux<String> tokens = chatModel.stream(new Prompt(prompt))
+                    .map(chatResponse -> {
+                        var generation = chatResponse.getResult();
+                        if (generation == null) return "";
+                        var output = generation.getOutput();
+                        if (output == null) return "";
+                        var text = output.getText();
+                        return text != null ? text : "";
+                    })
+                    .filter(text -> !text.isEmpty())
+                    .doFinally(signal -> semaphore.release());
+
+            return new StreamingContext(sources, tokens);
+
+        } catch (Exception e) {
+            semaphore.release();
+            throw e;
+        }
     }
 }

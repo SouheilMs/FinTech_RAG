@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function ProtectedRoute({ children, adminOnly = false }: Props) {
-    const { user, isAdmin } = useAuth()
+    const { isAdmin } = useAuth()
 
     if (adminOnly && !isAdmin) return <Navigate to="/" replace />
 

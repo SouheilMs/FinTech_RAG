@@ -14,11 +14,11 @@ export interface FinDocument {
 // ─── Chat types ─────────────────────────────────────────────────────────────
 
 export interface SourceReference {
-  documentId: string
-  document: string
-  page: number
-  chunkId?: string
-  excerpt?: string
+  documentName: string
+  pageNumber:   number
+  documentId?:  string
+  chunkId?:     string
+  excerpt?:     string
 }
 
 export interface ChatRequest {

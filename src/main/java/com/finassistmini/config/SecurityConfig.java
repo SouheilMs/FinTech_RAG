@@ -29,7 +29,7 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/chat").hasAnyRole("ADMIN", "USER")
+                        .requestMatchers("/chat", "/chat/stream").hasAnyRole("ADMIN", "USER")
                         .requestMatchers("/documents/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
