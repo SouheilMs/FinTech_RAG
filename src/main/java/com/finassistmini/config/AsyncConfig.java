@@ -21,4 +21,17 @@ public class AsyncConfig {
         ex.initialize();
         return ex;
     }
+
+    @Bean(name = "repositoryIndexExecutor")
+    public Executor repositoryIndexExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("repo-index-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        return executor;
+    }
 }
