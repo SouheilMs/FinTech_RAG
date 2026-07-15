@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { MessageSquare, FileText, Zap, LogOut, ChevronDown } from 'lucide-react'
+import {MessageSquare, FileText, Zap, LogOut, ChevronDown, GitBranch} from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAuth } from '@/context/AuthContext'
 import { useState } from 'react'
@@ -11,6 +11,7 @@ export default function Sidebar() {
     const navItems = [
         { to: '/',          icon: MessageSquare, label: 'AI Assistant', show: true     },
         { to: '/documents', icon: FileText,      label: 'Documents',    show: isAdmin  },
+        { to: '/repositories', icon: GitBranch,     label: 'Repositories',  show: isAdmin  },
     ].filter((i) => i.show)
 
     return (

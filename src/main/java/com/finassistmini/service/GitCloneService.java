@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 
 @Service
 public class GitCloneService {
@@ -49,21 +50,27 @@ public class GitCloneService {
     }
 
     private CloneResult clone(String url, Path repoPath) throws GitAPIException, IOException {
+        CloneResult result;
         try (Git git = Git.cloneRepository()
                 .setURI(url)
                 .setDirectory(repoPath.toFile())
-                .setDepth(1)              // shallow clone for performance
+                .setDepth(1)
                 .setNoTags()
-                .call()) {
-            return buildResult(git, repoPath);
+                .call()){
+            result = buildResult(git, repoPath);
         }
+        deleteGitDirectory(repoPath);
+        return result;
     }
 
     private CloneResult pull(Path repoPath) throws IOException, GitAPIException {
+        CloneResult result;
         try (Git git = Git.open(repoPath.toFile())) {
             git.pull().call();
-            return buildResult(git, repoPath);
+            result = buildResult(git, repoPath);
         }
+        deleteGitDirectory(repoPath);
+        return result;
     }
 
     private CloneResult buildResult(Git git, Path repoPath) throws IOException {
@@ -80,6 +87,31 @@ public class GitCloneService {
         }
 
         return new CloneResult(repoPath.toAbsolutePath().toString(), branch, commitHash);
+    }
+
+    private void deleteGitDirectory(Path repoPath) {
+        Path gitDir = repoPath.resolve(".git");
+        if (!Files.exists(gitDir)) {
+            return;
+        }
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try (var paths = Files.walk(gitDir)) {
+            paths.sorted(Comparator.reverseOrder())
+                    .forEach(path -> {
+                        try {
+                            Files.deleteIfExists(path);
+                        } catch (IOException e) {
+                            log.warn("Could not delete {}", path);
+                        }
+                    });
+            log.info("Deleted .git directory");
+        } catch (IOException e) {
+            log.error("Failed deleting .git: {}", e.getMessage());
+        }
     }
 
     public record CloneResult(String localPath, String branch, String commitHash) {}

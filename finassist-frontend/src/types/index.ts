@@ -44,6 +44,36 @@ export interface ChatMessage {
   isLoading?: boolean
 }
 
+export type RepositoryStatus = 'PENDING' | 'CLONING' | 'INDEXING' | 'COMPLETED' | 'FAILED'
+
+export interface GitRepository {
+  id:           number
+  url:          string
+  name:         string
+  owner:        string
+  branch:       string | null
+  commitHash:   string | null
+  status:       RepositoryStatus
+  errorMessage: string | null
+  indexedFiles: number
+  totalChunks:  number
+  hasSummary:   boolean
+  createdAt:    string
+  indexedAt:    string | null
+}
+
+export interface RepositorySubmitResponse {
+  repositoryId: number
+  status:       string
+}
+
+export interface RepositorySummaryResponse {
+  repositoryId:    number
+  repositoryName:  string
+  summary:         string
+  cached:          boolean
+}
+
 // ─── API error shape ────────────────────────────────────────────────────────
 
 export interface ApiError {

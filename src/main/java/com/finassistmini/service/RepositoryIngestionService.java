@@ -30,8 +30,6 @@ public class RepositoryIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(RepositoryIngestionService.class);
 
-    // Prefix stored as `documentId` in pgvector metadata.
-    // Allows removeByDocumentId() to delete all chunks for a repository.
     private static final String DOC_ID_PREFIX = "repo-";
 
     private static final int EMBEDDING_BATCH_SIZE = 20;
@@ -48,18 +46,10 @@ public class RepositoryIngestionService {
     private final RepositoryIndexJobRepository jobRepository;
     private final RepositoryProperties     props;
 
-    public RepositoryIngestionService(
-            GitUrlValidator urlValidator,
-            GitCloneService cloneService,
-            FileFilterService fileFilter,
-            LanguageDetector languageDetector,
-            CodeChunkingService chunkingService,
-            VectorStoreService vectorStoreService,
-            RepositorySummaryService summaryService,
-            GitRepositoryRepository repoRepository,
-            RepositoryFileRepository fileRepository,
-            RepositoryIndexJobRepository jobRepository,
-            RepositoryProperties props) {
+    public RepositoryIngestionService( GitUrlValidator urlValidator, GitCloneService cloneService,
+            FileFilterService fileFilter, LanguageDetector languageDetector, CodeChunkingService chunkingService,
+            VectorStoreService vectorStoreService, RepositorySummaryService summaryService, GitRepositoryRepository repoRepository,
+            RepositoryFileRepository fileRepository, RepositoryIndexJobRepository jobRepository, RepositoryProperties props) {
         this.urlValidator      = urlValidator;
         this.cloneService      = cloneService;
         this.fileFilter        = fileFilter;
@@ -98,7 +88,7 @@ public class RepositoryIngestionService {
         repo = repoRepository.save(repo);
         log.info("Repository submitted for indexing: {} (id={})", url, repo.getId());
 
-        indexAsync(repo.getId());
+        runIndexingPipeline(repo.getId());
 
         return new RepositoryResponse(repo.getId(), repo.getStatus().name());
     }
@@ -126,11 +116,10 @@ public class RepositoryIngestionService {
             log.error("Failed to remove pgvector chunks for repository {}: {}", id, e.getMessage());
         }
 
-        // Delete local clone
+        // Delete entirely local clone ( the directory itself )
         if (repo.getLocalPath() != null) {
             deleteDirectory(Paths.get(repo.getLocalPath()));
         }
-
         repoRepository.delete(repo);
         log.info("Repository {} deleted", id);
     }
@@ -151,7 +140,7 @@ public class RepositoryIngestionService {
         repo.setTotalChunks(0);
         repoRepository.save(repo);
 
-        indexAsync(id);
+        runIndexingPipeline(id);
         return new RepositoryResponse(id, RepositoryStatus.PENDING.name());
     }
 
@@ -170,7 +159,7 @@ public class RepositoryIngestionService {
     }
 
     @Async("repositoryIndexExecutor")
-    public void indexAsync(Long repositoryId) {
+    public void runIndexingPipeline(Long repositoryId) {
         GitRepository repo = findOrThrow(repositoryId);
         RepositoryIndexJob job = RepositoryIndexJob.builder()
                 .repository(repo)
@@ -179,14 +168,14 @@ public class RepositoryIngestionService {
         jobRepository.save(job);
 
         try {
-            runIndexingPipeline(repo, job);
+            runIndexingPipelineInternal(repo, job);
         } catch (Exception e) {
             log.error("Indexing failed for repository {}: {}", repositoryId, e.getMessage(), e);
             markFailed(repo, job, e.getMessage());
         }
     }
 
-    private void runIndexingPipeline(GitRepository repo, RepositoryIndexJob job) throws Exception {
+    private void runIndexingPipelineInternal(GitRepository repo, RepositoryIndexJob job) throws Exception {
         // 1 ── Clone or pull
         updateStatus(repo, RepositoryStatus.CLONING);
         GitCloneService.CloneResult cloneResult = cloneService.cloneOrPull(
@@ -287,7 +276,6 @@ public class RepositoryIngestionService {
 
         log.info("Repository {} indexed: {} files, {} chunks", repo.getId(), processedFiles, totalChunks);
 
-        // 6 ── Generate summary asynchronously (non-blocking, best effort)
         if (props.isSummaryEnabled()) {
             try {
                 summaryService.getSummary(repo);
@@ -385,13 +373,17 @@ public class RepositoryIngestionService {
 
     private void deleteDirectory(Path path) {
         if (!Files.exists(path)) return;
-        try {
-            Files.walk(path)
+        try (var paths = Files.walk(path)) {
+            paths
                     .sorted(Comparator.reverseOrder())
                     .forEach(p -> {
-                        try { Files.delete(p); }
-                        catch (IOException e) { log.warn("Could not delete {}", p); }
+                        try {
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            log.warn("Could not delete {}: {}", p, e.getMessage());
+                        }
                     });
+            log.info("Directory deleted: {}", path);
         } catch (IOException e) {
             log.error("Failed to delete directory {}: {}", path, e.getMessage());
         }
