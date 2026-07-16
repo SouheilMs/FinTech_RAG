@@ -31,6 +31,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/chat", "/chat/stream").hasAnyRole("ADMIN", "USER")
                         .requestMatchers("/documents/**").hasRole("ADMIN")
+                        .requestMatchers("/repositories/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

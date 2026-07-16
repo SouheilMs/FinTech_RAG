@@ -80,3 +80,52 @@ logging:
   level:
     org.springframework.ai: INFO
     com.finassistmini: DEBUG
+
+repository:
+  storage-path: storage/repositories
+  max-file-size-bytes: 1048576       # 1 MB
+  max-files-per-repo: 2000
+  max-depth: 20
+  clone-timeout-seconds: 120
+  summary-enabled: true
+  async-enabled: true
+  allowed-extensions:
+    - java
+    - kt
+    - py
+    - js
+    - ts
+    - go
+    - rs
+    - c
+    - cpp
+    - cs
+    - yaml
+    - yml
+    - json
+    - xml
+    - md
+    - properties
+    - sql
+    - gradle
+    - kts
+    - dockerfile
+    - txt
+  ignored-directories:
+    - .git
+    - node_modules
+    - target
+    - build
+    - dist
+    - coverage
+    - .idea
+    - .vscode
+    - bin
+    - obj
+    - vendor
+    - logs
+    - tmp
+    - generated
+    - __pycache__
+    - .gradle
+    - .mvn

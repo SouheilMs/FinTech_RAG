@@ -6,6 +6,7 @@ import Sidebar             from '@/components/layout/Sidebar'
 import Navbar              from '@/components/layout/Navbar'
 import ChatPage            from '@/pages/ChatPage'
 import DocumentsPage       from '@/pages/DocumentsPage'
+import RepositoriesPage from "@/pages/RepositoriesPage.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -25,6 +26,9 @@ function AppLayout() {
               <Route path="/documents" element={
                 <ProtectedRoute adminOnly><DocumentsPage /></ProtectedRoute>
               }/>
+                <Route path="/repositories" element={
+                    <ProtectedRoute adminOnly><RepositoriesPage /></ProtectedRoute>
+                }/>
             </Routes>
           </main>
         </div>

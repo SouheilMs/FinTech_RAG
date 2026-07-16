@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Menu, X, MessageSquare, FileText, Zap, LogOut } from 'lucide-react'
+import {Menu, X, MessageSquare, FileText, Zap, LogOut, GitBranch} from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useAuth } from '@/context/AuthContext'
 
 const titles: Record<string, string> = {
   '/':          'AI Assistant',
   '/documents': 'Documents',
+  '/repositories': 'Repositories',
 }
 
 export default function Navbar() {
@@ -18,6 +19,7 @@ export default function Navbar() {
   const navItems = [
     { to: '/',          icon: MessageSquare, label: 'AI Assistant', show: true    },
     { to: '/documents', icon: FileText,      label: 'Documents',    show: isAdmin },
+    { to: '/repositories', icon: GitBranch,     label: 'Repositories',  show: isAdmin  },
   ].filter((i) => i.show)
 
   const title = titles[pathname] ?? 'FinAssist'
