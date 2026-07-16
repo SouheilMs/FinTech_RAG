@@ -67,6 +67,13 @@ app:
   chat-max-concurrency: ${CHAT_MAX_CONCURRENCY:1}
   admission-wait-seconds: ${ADMISSION_WAIT_SECONDS:1.0}
 
+keycloak:
+  admin:
+    server-url: ${KEYCLOAK_SERVER_URL:http://localhost:8180}
+    realm: ${KEYCLOAK_REALM:finassist}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:finassist-admin}
+    client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:5ra1xDe32xlCltOTwIdnUVaqoeK1dpmP}
+
 springdoc:
   api-docs:
     path: /v3/api-docs
