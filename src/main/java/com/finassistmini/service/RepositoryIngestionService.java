@@ -9,6 +9,9 @@ import com.finassistmini.model.*;
 import com.finassistmini.repository.GitRepositoryRepository;
 import com.finassistmini.repository.RepositoryFileRepository;
 import com.finassistmini.repository.RepositoryIndexJobRepository;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.internal.storage.file.WindowCache;
+import org.eclipse.jgit.storage.file.WindowCacheConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.document.Document;
@@ -22,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.DosFileAttributeView;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -373,19 +377,74 @@ public class RepositoryIngestionService {
 
     private void deleteDirectory(Path path) {
         if (!Files.exists(path)) return;
-        try (var paths = Files.walk(path)) {
-            paths
+        releaseJGitHandles(path);
+        try {
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            Files.walk(path)
                     .sorted(Comparator.reverseOrder())
-                    .forEach(p -> {
-                        try {
-                            Files.deleteIfExists(p);
-                        } catch (IOException e) {
-                            log.warn("Could not delete {}: {}", p, e.getMessage());
-                        }
-                    });
-            log.info("Directory deleted: {}", path);
+                    .forEach(p -> deleteWithRetry(p, 5));
+            if (Files.exists(path)) {
+                log.error("Repository directory was not fully deleted: {}", path);
+            } else {
+                log.info("Repository directory deleted: {}", path);
+            }
         } catch (IOException e) {
-            log.error("Failed to delete directory {}: {}", path, e.getMessage());
+            log.error("Failed to walk directory {}: {}", path, e.getMessage());
+        }
+    }
+
+    private void releaseJGitHandles(Path repoPath) {
+        Path gitDir = repoPath.resolve(".git");
+        if (!Files.exists(gitDir)) return;
+        try (Git git = Git.open(repoPath.toFile())) {
+            git.getRepository().getObjectDatabase().close();
+            git.getRepository().close();
+            log.debug("JGit repository closed for {}", repoPath);
+        } catch (Exception e) {
+            log.debug("Could not open/close JGit repository at {}: {}", repoPath, e.getMessage());
+        }
+        try {
+            WindowCacheConfig cfg = new WindowCacheConfig();
+            cfg.setPackedGitLimit(0);
+            cfg.setPackedGitWindowSize(4096);
+            cfg.setPackedGitMMAP(false);
+            cfg.setDeltaBaseCacheLimit(0);
+            WindowCache.reconfigure(cfg);
+            log.debug("JGit WindowCache flushed");
+        } catch (Exception e) {
+            log.debug("Could not reconfigure JGit WindowCache: {}", e.getMessage());
+        }
+    }
+
+    private void deleteWithRetry(Path path, int maxRetries) {
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                DosFileAttributeView dos = Files.getFileAttributeView(
+                        path, DosFileAttributeView.class);
+                if (dos != null) {
+                    dos.setReadOnly(false);
+                }
+                path.toFile().setWritable(true);
+                path.toFile().setReadable(true);
+                Files.delete(path);
+                return;
+            } catch (IOException e) {
+                if (attempt == maxRetries) {
+                    log.warn("Could not delete {} after {} attempts: {}",
+                            path, maxRetries, e.getMessage());
+                } else {
+                    try {
+                        Thread.sleep(200L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
         }
     }
 }
