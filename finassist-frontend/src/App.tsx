@@ -7,6 +7,7 @@ import Navbar              from '@/components/layout/Navbar'
 import ChatPage            from '@/pages/ChatPage'
 import DocumentsPage       from '@/pages/DocumentsPage'
 import RepositoriesPage from "@/pages/RepositoriesPage.tsx";
+import UserManagementPage from "@/pages/UserManagementPage.tsx";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -28,6 +29,9 @@ function AppLayout() {
               }/>
                 <Route path="/repositories" element={
                     <ProtectedRoute adminOnly><RepositoriesPage /></ProtectedRoute>
+                }/>
+                <Route path="/users" element={
+                    <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>
                 }/>
             </Routes>
           </main>
