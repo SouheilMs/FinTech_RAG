@@ -13,6 +13,12 @@ public record DocumentResponse(
         @Schema(example = "fees.pdf")
         String name,
 
+        @Schema(example = "user-123")
+        String ownerId,
+
+        @Schema(example = "johndoe")
+        String ownerUsername,
+
         @Schema(description = "Number of non-empty PDF pages", example = "18")
         int pageCount,
 

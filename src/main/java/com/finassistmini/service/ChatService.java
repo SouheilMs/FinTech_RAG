@@ -37,7 +37,7 @@ public class ChatService {
         this.semaphore = new Semaphore(props.chatMaxConcurrency(), true);
     }
 
-    public ChatResponse chat(String question) throws InterruptedException {
+    public ChatResponse chat(String question, String ownerId) throws InterruptedException {
         long waitMs   = (long) (props.admissionWaitSeconds() * 1000);
         boolean acquired = semaphore.tryAcquire(waitMs, TimeUnit.MILLISECONDS);
         if (!acquired) {
@@ -46,7 +46,7 @@ public class ChatService {
         }
         try {
             // Search directly with query text - Spring AI handles embedding
-            List<RetrievedChunk> chunks = vectorStore.search(question, props.retrievalK());
+            List<RetrievedChunk> chunks = vectorStore.search(question, ownerId, props.retrievalK());
             log.debug("Retrieved {} chunks for question: '{}'", chunks.size(), question);
             if (chunks.isEmpty()) {
                 return new ChatResponse(
@@ -102,7 +102,7 @@ public class ChatService {
 
     public record StreamingContext(List<SourceReference> sources, Flux<String> tokens) {}
 
-    public StreamingContext stream(String question) throws InterruptedException {
+    public StreamingContext stream(String question, String ownerId) throws InterruptedException {
         long waitMs  = (long) (props.admissionWaitSeconds() * 1000);
         boolean acquired = semaphore.tryAcquire(waitMs, TimeUnit.MILLISECONDS);
         if (!acquired) {
@@ -110,7 +110,7 @@ public class ChatService {
                     "Chat server is busy — please retry shortly");
         }
         try {
-            List<RetrievedChunk> chunks = vectorStore.search(question, props.retrievalK());
+            List<RetrievedChunk> chunks = vectorStore.search(question, ownerId, props.retrievalK());
             log.debug("Retrieved {} chunks for streaming question: '{}'", chunks.size(), question);
 
             if (chunks.isEmpty()) {

@@ -8,11 +8,11 @@ import java.util.Optional;
 
 public interface GitRepositoryRepository extends JpaRepository<GitRepository, Long> {
 
-    Optional<GitRepository> findByUrl(String url);
+    List<GitRepository> findByOwnerIdOrderByCreatedAtDesc(String ownerId);
 
-    List<GitRepository> findAllByOrderByCreatedAtDesc();
+    Optional<GitRepository> findByIdAndOwnerId(Long id, String ownerId);
 
-    List<GitRepository> findByStatus(RepositoryStatus status);
+    Optional<GitRepository> findByUrlAndOwnerId(String url, String ownerId);
 
-    boolean existsByUrl(String url);
+    boolean existsByIdAndOwnerId(Long id, String ownerId);
 }

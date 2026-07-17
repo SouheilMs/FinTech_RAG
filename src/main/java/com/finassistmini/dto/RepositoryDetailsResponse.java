@@ -7,6 +7,8 @@ public record RepositoryDetailsResponse(
         String url,
         String name,
         String owner,
+        String ownerId,
+        String ownerUsername,
         String branch,
         String commitHash,
         String status,

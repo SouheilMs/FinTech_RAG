@@ -3,10 +3,14 @@ package com.finassistmini.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finassistmini.config.AppProperties;
 import com.finassistmini.model.DocumentMeta;
+import com.finassistmini.repository.DocumentRepository;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,10 +29,13 @@ public class DocumentService {
     private final AppProperties props;
     private final ObjectMapper objectMapper;
     private final ConcurrentHashMap<String, DocumentMeta> documents = new ConcurrentHashMap<>();
+    private VectorStoreService vectorStoreService;
+    private DocumentRepository documentRepository;
 
-    public DocumentService(AppProperties props, ObjectMapper objectMapper) {
+    public DocumentService(AppProperties props, ObjectMapper objectMapper, VectorStoreService vectorStoreService, DocumentRepository documentRepository) {
         this.props = props;
         this.objectMapper = objectMapper;
+        this.vectorStoreService = vectorStoreService;
     }
 
     @PostConstruct
@@ -86,23 +93,32 @@ public class DocumentService {
         persist();
     }
 
-    public void delete(String documentId) {
-        DocumentMeta meta = documents.remove(documentId);
-        if (meta == null) return;
-        try {
-            Files.deleteIfExists(Path.of(meta.getFilePath()));
-        } catch (IOException e) {
-            log.warn("Could not delete PDF file '{}': {}", meta.getFilePath(), e.getMessage());
-        }
-        persist();
+    @Transactional
+    public void deleteByIdAndOwner(String id, String ownerId) {
+        var doc = documentRepository.findByDocumentIdAndOwnerId(id, ownerId)
+                .orElseThrow(() -> {
+                    // If document exists but owner differs, return 403 not 404
+                    boolean exists = documentRepository.existsByDocumentId(id);
+                    return exists
+                            ? new ResponseStatusException(HttpStatus.FORBIDDEN,
+                            "You do not have permission to delete document: " + id)
+                            : new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Document not found: " + id);
+                });
+        // Remove pgvector chunks before removing the DB row
+        vectorStoreService.removeByDocumentId(doc.getDocumentId());
+        documentRepository.delete(doc);
     }
 
-    public List<DocumentMeta> findAll() {
-        return new ArrayList<>(documents.values());
+    public List<DocumentMeta> findAllByOwner(String ownerId) {
+        return documentRepository.findByOwnerIdOrderByUploadedAtDesc(ownerId)
+                .stream()
+                .toList();
     }
 
-    public Optional<DocumentMeta> findById(String documentId) {
-        return Optional.ofNullable(documents.get(documentId));
+    public DocumentMeta findByIdAndOwner(String id, String ownerId) {
+        return documentRepository.findByDocumentIdAndOwnerId(id, ownerId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
     }
 
     public Path getDocsDirectory() {

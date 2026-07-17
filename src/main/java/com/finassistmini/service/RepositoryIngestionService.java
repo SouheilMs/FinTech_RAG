@@ -68,15 +68,15 @@ public class RepositoryIngestionService {
     }
 
     @Transactional
-    public RepositoryResponse submit(IndexRepositoryRequest request) {
+    public RepositoryResponse submit(IndexRepositoryRequest request, String ownerId, String ownerUsername) {
         String url = request.url().trim();
         urlValidator.validate(url);
 
         String owner = urlValidator.extractOwner(url);
         String name  = urlValidator.extractName(url);
 
-        // If already submitted, return the existing record
-        Optional<GitRepository> existing = repoRepository.findByUrl(url);
+        // Per-owner deduplication — two users may index the same URL independently
+        Optional<GitRepository> existing = repoRepository.findByUrlAndOwnerId(url, ownerId);
         if (existing.isPresent()) {
             GitRepository repo = existing.get();
             return new RepositoryResponse(repo.getId(), repo.getStatus().name());
@@ -86,56 +86,49 @@ public class RepositoryIngestionService {
                 .url(url)
                 .name(name)
                 .owner(owner)
+                .ownerId(ownerId)              // ✅ Keycloak subject
+                .ownerUsername(ownerUsername)  // ✅ display only
                 .status(RepositoryStatus.PENDING)
                 .build();
 
         repo = repoRepository.save(repo);
-        log.info("Repository submitted for indexing: {} (id={})", url, repo.getId());
-
-        runIndexingPipeline(repo.getId());
-
         return new RepositoryResponse(repo.getId(), repo.getStatus().name());
     }
 
-    public List<RepositoryDetailsResponse> listAll() {
-        return repoRepository.findAllByOrderByCreatedAtDesc()
+    public List<RepositoryDetailsResponse> listAll(String ownerId) {
+        return repoRepository.findByOwnerIdOrderByCreatedAtDesc(ownerId)
                 .stream()
                 .map(this::toDetail)
                 .toList();
     }
 
-    public RepositoryDetailsResponse getById(Long id) {
-        return toDetail(findOrThrow(id));
+    public RepositoryDetailsResponse getById(Long id, String ownerId) {
+        return toDetail(findOrThrow(id, ownerId));
     }
 
     @Transactional
-    public void delete(Long id) {
-        GitRepository repo = findOrThrow(id);
+    public void delete(Long id, String ownerId) {
+        GitRepository repo = findOrThrow(id, ownerId);
 
-        // Remove all embeddings from pgvector
         try {
             vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id);
-            log.info("Removed pgvector chunks for repository {}", id);
         } catch (Exception e) {
             log.error("Failed to remove pgvector chunks for repository {}: {}", id, e.getMessage());
         }
 
-        // Delete entirely local clone ( the directory itself )
         if (repo.getLocalPath() != null) {
             deleteDirectory(Paths.get(repo.getLocalPath()));
         }
+
         repoRepository.delete(repo);
-        log.info("Repository {} deleted", id);
+        log.info("Repository {} deleted by owner '{}'", id, ownerId);
     }
 
     @Transactional
-    public RepositoryResponse reindex(Long id) {
-        GitRepository repo = findOrThrow(id);
+    public RepositoryResponse reindex(Long id, String ownerId) {
+        GitRepository repo = findOrThrow(id, ownerId);
 
-        // Remove old embeddings
         vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id);
-
-        // Delete old file records
         fileRepository.deleteByRepositoryId(id);
 
         repo.setStatus(RepositoryStatus.PENDING);
@@ -144,12 +137,11 @@ public class RepositoryIngestionService {
         repo.setTotalChunks(0);
         repoRepository.save(repo);
 
-        runIndexingPipeline(id);
         return new RepositoryResponse(id, RepositoryStatus.PENDING.name());
     }
 
-    public RepositorySummaryResponse getSummary(Long id) {
-        GitRepository repo = findOrThrow(id);
+    public RepositorySummaryResponse getSummary(Long id, String ownerId) {
+        GitRepository repo = findOrThrow(id, ownerId);
 
         if (repo.getStatus() != RepositoryStatus.COMPLETED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -163,8 +155,8 @@ public class RepositoryIngestionService {
     }
 
     @Async("repositoryIndexExecutor")
-    public void runIndexingPipeline(Long repositoryId) {
-        GitRepository repo = findOrThrow(repositoryId);
+    public void runIndexingPipeline(Long repositoryId, String ownerId) {
+        GitRepository repo = findOrThrow(repositoryId, ownerId);
         RepositoryIndexJob job = RepositoryIndexJob.builder()
                 .repository(repo)
                 .status(JobStatus.RUNNING)
@@ -295,25 +287,24 @@ public class RepositoryIngestionService {
                 file.relativePath().replaceAll("[^\\w]", "_"), chunkIndex);
 
         Map<String, Object> metadata = new HashMap<>();
-        // documentId = "repo-{id}" — allows removeByDocumentId() to delete all chunks
-        metadata.put("documentId",      DOC_ID_PREFIX + repo.getId());
-        metadata.put("documentName",    repo.getName());
-        metadata.put("pageNumber",      chunkIndex + 1);     // reused by SourceReference
-        metadata.put("chunkId",         chunkId);
-        // Repository-specific metadata
-        metadata.put("repositoryId",    String.valueOf(repo.getId()));
-        metadata.put("repositoryName",  repo.getName());
-        metadata.put("owner",           repo.getOwner());
-        metadata.put("filePath",        file.relativePath());
-        metadata.put("language",        language);
-        metadata.put("extension",       file.extension());
-        metadata.put("branch",          branch);
-        metadata.put("chunkIndex",      String.valueOf(chunkIndex));
-        metadata.put("commitHash",      commitHash);
-        metadata.put("sourceType",      "repository");       // distinguishes from PDFs
+        metadata.put("ownerId",        repo.getOwnerId());
+        metadata.put("documentId",     DOC_ID_PREFIX + repo.getId());
+        metadata.put("documentName",   repo.getName());
+        metadata.put("pageNumber",     chunkIndex + 1);
+        metadata.put("chunkId",        chunkId);
+        metadata.put("repositoryId",   String.valueOf(repo.getId()));
+        metadata.put("repositoryName", repo.getName());
+        metadata.put("owner",          repo.getOwner());
+        metadata.put("filePath",       file.relativePath());
+        metadata.put("language",       language);
+        metadata.put("extension",      file.extension());
+        metadata.put("branch",         branch);
+        metadata.put("chunkIndex",     String.valueOf(chunkIndex));
+        metadata.put("commitHash",     commitHash);
+        metadata.put("sourceType",     "repository");
 
         return Document.builder()
-                .id(UUID.randomUUID().toString())
+                .id(chunkId)
                 .text(chunkText)
                 .metadata(metadata)
                 .build();
@@ -351,10 +342,11 @@ public class RepositoryIngestionService {
         jobRepository.save(job);
     }
 
-    private GitRepository findOrThrow(Long id) {
-        return repoRepository.findById(id)
+    private GitRepository findOrThrow(Long id, String ownerId) {
+        return repoRepository.findByIdAndOwnerId(id, ownerId)
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Repository not found with id: " + id));
+                        HttpStatus.NOT_FOUND,
+                        "Repository not found: " + id));
     }
 
     private RepositoryDetailsResponse toDetail(GitRepository repo) {
@@ -363,6 +355,8 @@ public class RepositoryIngestionService {
                 repo.getUrl(),
                 repo.getName(),
                 repo.getOwner(),
+                repo.getOwnerId(),
+                repo.getOwnerUsername(),
                 repo.getBranch(),
                 repo.getCommitHash(),
                 repo.getStatus().name(),

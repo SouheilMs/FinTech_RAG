@@ -30,33 +30,34 @@ public class VectorStoreService {
     public void removeByDocumentId(String documentId) {
         List<Document> docs = vectorStore.similaritySearch(
                 SearchRequest.builder()
-                        .query("*")
-                        .topK(1000)
-                        .build()
-        );
-
+                        .query(" ")
+                        .topK(10_000)
+                        .filterExpression("documentId == '" + documentId + "'")
+                        .build());
         List<String> ids = docs.stream()
-                .filter(d -> documentId.equals(d.getMetadata().get("documentId")))
-                .map(Document::getId)   // 👈 IMPORTANT FIX
-                .filter(Objects::nonNull)
-                .toList();
-
+                .map(Document::getId)
+                .collect(Collectors.toList());
         if (!ids.isEmpty()) {
             vectorStore.delete(ids);
+            log.info("Removed {} vectors for documentId='{}'", ids.size(), documentId);
+        } else {
+            log.warn("No vectors found for documentId='{}'", documentId);
         }
-
-        log.info("Removed {} vectors for document '{}'", ids.size(), documentId);
     }
 
-    public List<RetrievedChunk> search(String query, int k) {
+    public List<RetrievedChunk> search(String query, String ownerId, int k) {
+        String ownerFilter = "ownerId == '" + ownerId + "'";
         List<Document> results = vectorStore.similaritySearch(
                 SearchRequest.builder()
                         .query(query)
                         .topK(k)
                         .similarityThreshold(0.65)
-                        .build());
-                log.debug("Retrieved {} chunks for query: '{}'", results.size(), query);
-                return results.stream()
+                        .filterExpression(ownerFilter)
+                        .build()
+        );
+        log.debug("Retrieved {} chunks for ownerId='{}', query='{}'",
+                results.size(), ownerId, query.length() > 60 ? query.substring(0, 60) + "…" : query);
+        return results.stream()
                 .map(this::documentToRetrievedChunk)
                 .collect(Collectors.toList());
     }

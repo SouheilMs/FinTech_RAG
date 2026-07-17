@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finassistmini.dto.ChatRequest;
 import com.finassistmini.dto.ChatResponse;
 import com.finassistmini.service.ChatService;
+import com.finassistmini.service.CurrentUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -26,10 +27,12 @@ public class ChatController {
 
     private final ChatService chatService;
     private final ObjectMapper objectMapper;
+    private final CurrentUserService currentUserService;
 
-    public ChatController(ChatService chatService, ObjectMapper objectMapper) {
+    public ChatController(ChatService chatService, ObjectMapper objectMapper, CurrentUserService currentUserService) {
         this.chatService = chatService;
         this.objectMapper = objectMapper;
+        this.currentUserService = currentUserService;
     }
 
     @PostMapping
@@ -48,16 +51,18 @@ public class ChatController {
     })
     public ChatResponse chat(@Valid @RequestBody ChatRequest request)
             throws InterruptedException {
-        return chatService.chat(request.question());
+        String ownerId = currentUserService.getUserId();
+        return chatService.chat(request.question(), ownerId);
     }
 
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@Valid @RequestBody ChatRequest request) {
+        String ownerId = currentUserService.getUserId();
         SseEmitter emitter = new SseEmitter(180_000L); // 3-minute timeout
 
         try {
             // Vector search happens here — synchronously and fast (~100 ms)
-            ChatService.StreamingContext ctx = chatService.stream(request.question());
+            ChatService.StreamingContext ctx = chatService.stream(request.question(), ownerId);
 
             // Send sources before the first token so the UI can render them immediately
             emitter.send(

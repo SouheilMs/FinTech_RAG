@@ -28,13 +28,18 @@ public class GitRepository {
     @Column(nullable = false)
     private String owner;
 
+    @Column(name = "owner_id", updatable = false)
+    private String ownerId;
+
+    @Column(name = "owner_username")
+    private String ownerUsername;
+
     @Column
     private String branch;
 
     @Column(name = "commit_hash", length = 40)
     private String commitHash;
 
-    /** Absolute path on disk where the repo was cloned. */
     @Column(name = "local_path", length = 1024)
     private String localPath;
 
@@ -45,7 +50,6 @@ public class GitRepository {
     @Column(name = "error_message", length = 2048)
     private String errorMessage;
 
-    /** AI-generated summary stored after indexing completes. */
     @Column(name = "summary", columnDefinition = "TEXT")
     private String summary;
 

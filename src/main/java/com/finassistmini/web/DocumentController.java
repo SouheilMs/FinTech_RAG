@@ -6,6 +6,7 @@ import com.finassistmini.dto.JobStatusResponse;
 import com.finassistmini.dto.UploadResponse;
 import com.finassistmini.model.DocumentMeta;
 import com.finassistmini.model.IngestionJob;
+import com.finassistmini.service.CurrentUserService;
 import com.finassistmini.service.DocumentService;
 import com.finassistmini.service.IngestionService;
 import com.finassistmini.service.VectorStoreService;
@@ -41,13 +42,15 @@ public class DocumentController {
     private final IngestionService   ingestionService;
     private final VectorStoreService vectorStoreService;
     private final AppProperties      props;
+    private final CurrentUserService currentUserService;
 
     public DocumentController(DocumentService documentService, IngestionService ingestionService,
-                              VectorStoreService vectorStoreService, AppProperties props) {
+                              VectorStoreService vectorStoreService, AppProperties props, CurrentUserService currentUserService) {
         this.documentService = documentService;
         this.ingestionService = ingestionService;
         this.vectorStoreService = vectorStoreService;
         this.props = props;
+        this.currentUserService = currentUserService;
     }
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -122,8 +125,10 @@ public class DocumentController {
     @ApiResponse(responseCode = "200", description = "List returned (may be empty)",
             content = @Content(schema = @Schema(implementation = DocumentResponse.class)))
     public List<DocumentResponse> listDocuments() {
-        return documentService.findAll().stream()
+        String ownerId = currentUserService.getUserId();
+        return documentService.findAllByOwner(ownerId).stream()
                 .map(m -> new DocumentResponse(
+                        m.getOwnerId(), m.getOwnerUsername(),
                         m.getDocumentId(), m.getName(),
                         m.getPageCount(), m.getChunkCount(),
                         m.getUploadedAt(), m.getStatus()))
@@ -147,10 +152,8 @@ public class DocumentController {
             @Parameter(description = "Document ID", required = true)
             @PathVariable String id) {
 
-        DocumentMeta meta = documentService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Document not found: " + id));
-
+        String ownerId = currentUserService.getUserId();
+        DocumentMeta meta = documentService.findByIdAndOwner(id, ownerId);
         vectorStoreService.removeByDocumentId(id);
         documentService.markPending(id);
 
@@ -173,12 +176,10 @@ public class DocumentController {
             @Parameter(description = "Document ID", required = true)
             @PathVariable String id) {
 
-        documentService.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Document not found: " + id));
-
+        String ownerId = currentUserService.getUserId();
+        documentService.findByIdAndOwner(id, ownerId);
         vectorStoreService.removeByDocumentId(id);
-        documentService.delete(id);
+        documentService.deleteByIdAndOwner(id, ownerId);
     }
 
     private void writeInChunks(InputStream in, Path dest) throws IOException {
