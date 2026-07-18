@@ -29,13 +29,14 @@ public class DocumentService {
     private final AppProperties props;
     private final ObjectMapper objectMapper;
     private final ConcurrentHashMap<String, DocumentMeta> documents = new ConcurrentHashMap<>();
-    private VectorStoreService vectorStoreService;
-    private DocumentRepository documentRepository;
+    private final VectorStoreService vectorStoreService;
+    private final DocumentRepository documentRepository;
 
     public DocumentService(AppProperties props, ObjectMapper objectMapper, VectorStoreService vectorStoreService, DocumentRepository documentRepository) {
         this.props = props;
         this.objectMapper = objectMapper;
         this.vectorStoreService = vectorStoreService;
+        this.documentRepository = documentRepository;
     }
 
     @PostConstruct
@@ -54,43 +55,51 @@ public class DocumentService {
         }
     }
 
-    public DocumentMeta register(String documentId, String name, Path filePath) {
+    @Transactional
+    public DocumentMeta register(String documentId, String name, Path filePath, String ownerId, String ownerUsername) {
         DocumentMeta meta = new DocumentMeta();
         meta.setDocumentId(documentId);
         meta.setName(name);
+        meta.setOwnerId(ownerId);
+        meta.setOwnerUsername(ownerUsername);
         meta.setFilePath(filePath.toAbsolutePath().toString());
         meta.setUploadedAt(Instant.now());
         meta.setStatus("PENDING");
-        documents.put(documentId, meta);
-        persist();
+        documentRepository.saveAndFlush(meta);
         return meta;
     }
 
+    @Transactional
     public void markIndexed(String documentId, int pageCount, int chunkCount) {
-        DocumentMeta meta = documents.get(documentId);
+        DocumentMeta meta = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (meta == null) return;
         meta.setPageCount(pageCount);
         meta.setChunkCount(chunkCount);
         meta.setStatus("INDEXED");
-        persist();
+        documentRepository.save(meta);
     }
 
+    @Transactional
     public void markFailed(String documentId, String errorMessage) {
-        DocumentMeta meta = documents.get(documentId);
+        DocumentMeta meta = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (meta == null) return;
         meta.setStatus("FAILED");
         meta.setErrorMessage(errorMessage);
-        persist();
+        documentRepository.save(meta);
     }
 
+    @Transactional
     public void markPending(String documentId) {
-        DocumentMeta meta = documents.get(documentId);
+        DocumentMeta meta = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (meta == null) return;
         meta.setStatus("PENDING");
         meta.setPageCount(0);
         meta.setChunkCount(0);
         meta.setErrorMessage(null);
-        persist();
+        documentRepository.save(meta);
     }
 
     @Transactional
@@ -106,14 +115,12 @@ public class DocumentService {
                             "Document not found: " + id);
                 });
         // Remove pgvector chunks before removing the DB row
-        vectorStoreService.removeByDocumentId(doc.getDocumentId());
+        vectorStoreService.removeByDocumentId(doc.getDocumentId(), ownerId);
         documentRepository.delete(doc);
     }
 
     public List<DocumentMeta> findAllByOwner(String ownerId) {
-        return documentRepository.findByOwnerIdOrderByUploadedAtDesc(ownerId)
-                .stream()
-                .toList();
+        return documentRepository.findAllByOwnerId(ownerId);
     }
 
     public DocumentMeta findByIdAndOwner(String id, String ownerId) {
@@ -127,16 +134,5 @@ public class DocumentService {
 
     private Path indexFile() {
         return Path.of(props.docsDirectory()).resolve("index.json");
-    }
-
-    private synchronized void persist() {
-        try {
-            Path index = indexFile();
-            Files.createDirectories(index.getParent());
-            objectMapper.writerWithDefaultPrettyPrinter()
-                    .writeValue(index.toFile(), new ArrayList<>(documents.values()));
-        } catch (IOException e) {
-            log.error("Failed to persist document index: {}", e.getMessage());
-        }
     }
 }

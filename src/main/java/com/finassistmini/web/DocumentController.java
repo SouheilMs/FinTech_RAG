@@ -38,10 +38,10 @@ import java.util.stream.Collectors;
 @Tag(name = "Documents", description = "Upload and manage financial PDF documents")
 public class DocumentController {
 
-    private final DocumentService    documentService;
-    private final IngestionService   ingestionService;
+    private final DocumentService documentService;
+    private final IngestionService ingestionService;
     private final VectorStoreService vectorStoreService;
-    private final AppProperties      props;
+    private final AppProperties props;
     private final CurrentUserService currentUserService;
 
     public DocumentController(DocumentService documentService, IngestionService ingestionService,
@@ -70,6 +70,8 @@ public class DocumentController {
             @Parameter(description = "PDF file to ingest (multipart/form-data)", required = true)
             @RequestParam("file") MultipartFile file) throws IOException {
 
+        String ownerId       = currentUserService.getUserId();
+        String ownerUsername = currentUserService.getUsername();
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No file provided");
         }
@@ -89,8 +91,8 @@ public class DocumentController {
         Path dest = docsDir.resolve(documentId + "_" + filename);
         writeInChunks(file.getInputStream(), dest);
 
-        documentService.register(documentId, filename, dest);
-        IngestionJob job = ingestionService.submitJob(documentId, filename, dest);
+        documentService.register(documentId, filename, dest, ownerId, ownerUsername);
+        IngestionJob job = ingestionService.submitJob(documentId, filename, dest, ownerId, ownerUsername);
 
         return new UploadResponse(
                 job.getJobId(), documentId, "ACCEPTED", "Document queued for ingestion");
@@ -128,8 +130,8 @@ public class DocumentController {
         String ownerId = currentUserService.getUserId();
         return documentService.findAllByOwner(ownerId).stream()
                 .map(m -> new DocumentResponse(
-                        m.getOwnerId(), m.getOwnerUsername(),
                         m.getDocumentId(), m.getName(),
+                        m.getOwnerId(), m.getOwnerUsername(),
                         m.getPageCount(), m.getChunkCount(),
                         m.getUploadedAt(), m.getStatus()))
                 .collect(Collectors.toList());
@@ -153,12 +155,12 @@ public class DocumentController {
             @PathVariable String id) {
 
         String ownerId = currentUserService.getUserId();
+        String ownerUsername = currentUserService.getUsername();
         DocumentMeta meta = documentService.findByIdAndOwner(id, ownerId);
-        vectorStoreService.removeByDocumentId(id);
+        vectorStoreService.removeByDocumentId(id, ownerId);
         documentService.markPending(id);
 
-        IngestionJob job = ingestionService.submitJob(
-                id, meta.getName(), Path.of(meta.getFilePath()));
+        IngestionJob job = ingestionService.submitJob( id, meta.getName(), Path.of(meta.getFilePath()), ownerId, ownerUsername);
 
         return new UploadResponse(job.getJobId(), id, "ACCEPTED", "Re-indexing queued");
     }
@@ -178,7 +180,7 @@ public class DocumentController {
 
         String ownerId = currentUserService.getUserId();
         documentService.findByIdAndOwner(id, ownerId);
-        vectorStoreService.removeByDocumentId(id);
+        vectorStoreService.removeByDocumentId(id, ownerId);
         documentService.deleteByIdAndOwner(id, ownerId);
     }
 

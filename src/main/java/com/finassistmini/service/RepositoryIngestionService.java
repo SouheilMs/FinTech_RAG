@@ -33,38 +33,36 @@ import java.util.*;
 public class RepositoryIngestionService {
 
     private static final Logger log = LoggerFactory.getLogger(RepositoryIngestionService.class);
-
     private static final String DOC_ID_PREFIX = "repo-";
-
     private static final int EMBEDDING_BATCH_SIZE = 20;
 
-    private final GitUrlValidator          urlValidator;
-    private final GitCloneService          cloneService;
-    private final FileFilterService        fileFilter;
-    private final LanguageDetector         languageDetector;
-    private final CodeChunkingService      chunkingService;
-    private final VectorStoreService       vectorStoreService;
+    private final GitUrlValidator urlValidator;
+    private final GitCloneService cloneService;
+    private final FileFilterService fileFilter;
+    private final LanguageDetector languageDetector;
+    private final CodeChunkingService chunkingService;
+    private final VectorStoreService vectorStoreService;
     private final RepositorySummaryService summaryService;
-    private final GitRepositoryRepository  repoRepository;
+    private final GitRepositoryRepository repoRepository;
     private final RepositoryFileRepository fileRepository;
     private final RepositoryIndexJobRepository jobRepository;
-    private final RepositoryProperties     props;
+    private final RepositoryProperties props;
 
     public RepositoryIngestionService( GitUrlValidator urlValidator, GitCloneService cloneService,
             FileFilterService fileFilter, LanguageDetector languageDetector, CodeChunkingService chunkingService,
             VectorStoreService vectorStoreService, RepositorySummaryService summaryService, GitRepositoryRepository repoRepository,
             RepositoryFileRepository fileRepository, RepositoryIndexJobRepository jobRepository, RepositoryProperties props) {
-        this.urlValidator      = urlValidator;
-        this.cloneService      = cloneService;
-        this.fileFilter        = fileFilter;
-        this.languageDetector  = languageDetector;
-        this.chunkingService   = chunkingService;
+        this.urlValidator = urlValidator;
+        this.cloneService = cloneService;
+        this.fileFilter = fileFilter;
+        this.languageDetector = languageDetector;
+        this.chunkingService = chunkingService;
         this.vectorStoreService = vectorStoreService;
-        this.summaryService    = summaryService;
-        this.repoRepository    = repoRepository;
-        this.fileRepository    = fileRepository;
-        this.jobRepository     = jobRepository;
-        this.props             = props;
+        this.summaryService = summaryService;
+        this.repoRepository = repoRepository;
+        this.fileRepository = fileRepository;
+        this.jobRepository = jobRepository;
+        this.props = props;
     }
 
     @Transactional
@@ -86,12 +84,14 @@ public class RepositoryIngestionService {
                 .url(url)
                 .name(name)
                 .owner(owner)
-                .ownerId(ownerId)              // ✅ Keycloak subject
-                .ownerUsername(ownerUsername)  // ✅ display only
+                .ownerId(ownerId)
+                .ownerUsername(ownerUsername)
                 .status(RepositoryStatus.PENDING)
                 .build();
 
         repo = repoRepository.save(repo);
+        log.info("Repository submitted for indexing: {} (id={})", url, repo.getId());
+        runIndexingPipeline(repo.getId(), ownerId);
         return new RepositoryResponse(repo.getId(), repo.getStatus().name());
     }
 
@@ -111,7 +111,7 @@ public class RepositoryIngestionService {
         GitRepository repo = findOrThrow(id, ownerId);
 
         try {
-            vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id);
+            vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id, repo.getOwnerId());
         } catch (Exception e) {
             log.error("Failed to remove pgvector chunks for repository {}: {}", id, e.getMessage());
         }
@@ -128,7 +128,7 @@ public class RepositoryIngestionService {
     public RepositoryResponse reindex(Long id, String ownerId) {
         GitRepository repo = findOrThrow(id, ownerId);
 
-        vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id);
+        vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id, repo.getOwnerId());
         fileRepository.deleteByRepositoryId(id);
 
         repo.setStatus(RepositoryStatus.PENDING);
@@ -283,8 +283,7 @@ public class RepositoryIngestionService {
 
     private Document buildDocument(GitRepository repo, FileFilterService.EligibleFile file, String language,
                                    String chunkText, int chunkIndex, String commitHash, String branch) {
-        String chunkId = "repo-%d-%s-%d".formatted(repo.getId(),
-                file.relativePath().replaceAll("[^\\w]", "_"), chunkIndex);
+        String chunkId = UUID.randomUUID().toString();
 
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("ownerId",        repo.getOwnerId());
@@ -301,6 +300,7 @@ public class RepositoryIngestionService {
         metadata.put("branch",         branch);
         metadata.put("chunkIndex",     String.valueOf(chunkIndex));
         metadata.put("commitHash",     commitHash);
+        metadata.put("chunkId", "repo-%d-%s-%d".formatted(repo.getId(), file.relativePath().replaceAll("[^\\w]", "_"), chunkIndex));
         metadata.put("sourceType",     "repository");
 
         return Document.builder()

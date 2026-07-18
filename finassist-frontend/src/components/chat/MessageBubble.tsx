@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Copy, Check, Bot, User } from 'lucide-react'
+import { Copy, Check, Bot, User, Upload } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import type { ChatMessage } from '@/types'
 import SourceCard from './SourceCard'
@@ -14,14 +14,15 @@ const OUT_OF_SCOPE_PHRASES = [
 
 const isOutOfScope = (content: string): boolean => {
     const lower = content.toLowerCase()
-    return OUT_OF_SCOPE_PHRASES.some(phrase => lower.includes(phrase))
+    return OUT_OF_SCOPE_PHRASES.some(p => lower.includes(p))
 }
 
 export default function MessageBubble({ message }: Props) {
     const [copied, setCopied] = useState(false)
     const isAI       = message.role === 'assistant'
-    const isWaiting   = message.isLoading && message.content === ''   // show dots
-    const isStreaming  = message.isLoading && message.content !== ''  // show cursor
+    const isWaiting  = message.isLoading && message.content === ''
+    const isStreaming = message.isLoading && message.content !== ''
+    const outOfScope = isAI && !message.isLoading && isOutOfScope(message.content)
 
     const copy = async () => {
         await navigator.clipboard.writeText(message.content)
@@ -32,7 +33,7 @@ export default function MessageBubble({ message }: Props) {
     const showSources =
         isAI &&
         !message.isLoading &&
-        !isOutOfScope(message.content) &&
+        !outOfScope &&
         Array.isArray(message.sources) &&
         message.sources.length > 0
 
@@ -48,7 +49,10 @@ export default function MessageBubble({ message }: Props) {
             </div>
 
             {/* Bubble */}
-            <div className={cn('flex flex-col gap-2 max-w-[80%]', isAI ? 'items-start' : 'items-end')}>
+            <div className={cn(
+                'flex flex-col gap-2 max-w-[80%]',
+                isAI ? 'items-start' : 'items-end',
+            )}>
                 <div className={cn(
                     'relative px-4 py-3 rounded-2xl text-sm leading-relaxed',
                     isAI
@@ -69,7 +73,7 @@ export default function MessageBubble({ message }: Props) {
                         </div>
                     )}
 
-                    {/* Streaming or completed AI response */}
+                    {/* Streaming or complete AI response */}
                     {!isWaiting && isAI && (
                         <>
                             <div className="
@@ -89,7 +93,7 @@ export default function MessageBubble({ message }: Props) {
                                 <span className="inline-block w-0.5 h-4 bg-accent ml-0.5 align-text-bottom animate-pulse" />
                             )}
 
-                            {/* Copy — only when fully rendered */}
+                            {/* Copy — only when complete */}
                             {!message.isLoading && (
                                 <button
                                     onClick={copy}
@@ -113,8 +117,19 @@ export default function MessageBubble({ message }: Props) {
 
                 {/* Timestamp */}
                 <span className="text-[10px] text-text-muted px-1">
-          {message.timestamp.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+          {message.timestamp.toLocaleTimeString('en-GB', {
+              hour: '2-digit', minute: '2-digit',
+          })}
         </span>
+
+                {outOfScope && (
+                    <div className="flex items-center gap-2 text-[11px] text-text-muted bg-surface border border-surface-border rounded-xl px-3 py-2 animate-fade-in">
+                        <Upload size={11} className="text-text-muted flex-shrink-0" />
+                        <span>
+              Upload documents or index a repository to get answers about your content.
+            </span>
+                    </div>
+                )}
 
                 {/* Sources */}
                 {showSources && (

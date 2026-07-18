@@ -5,6 +5,8 @@ export type DocumentStatus = 'PENDING' | 'PROCESSING' | 'INDEXED' | 'FAILED'
 export interface FinDocument {
   documentId: string
   name: string
+  ownerId : string
+  ownerUsername : string
   uploadedAt: string      // ISO-8601 returned by Spring Boot
   status: DocumentStatus
   pageCount?: number

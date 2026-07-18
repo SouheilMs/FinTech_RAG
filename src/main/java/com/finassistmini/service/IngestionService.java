@@ -28,14 +28,8 @@ public class IngestionService {
     private final ConcurrentHashMap<String, IngestionJob> jobs = new ConcurrentHashMap<>();
     private final Semaphore semaphore;
 
-    public IngestionService(
-            PdfParserService pdfParser,
-            ChunkingService chunker,
-            VectorStoreService vectorStore,
-            DocumentService documentService,
-            AppProperties props,
-            @Qualifier("ingestionExecutor") Executor executor) {
-
+    public IngestionService( PdfParserService pdfParser, ChunkingService chunker, VectorStoreService vectorStore,
+            DocumentService documentService, AppProperties props, @Qualifier("ingestionExecutor") Executor executor) {
         this.pdfParser = pdfParser;
         this.chunker = chunker;
         this.vectorStore = vectorStore;
@@ -45,14 +39,15 @@ public class IngestionService {
         this.semaphore = new Semaphore(props.uploadMaxConcurrency(), true);
     }
 
-    public IngestionJob submitJob(String documentId, String documentName, Path pdfPath) {
+    public IngestionJob submitJob(String documentId, String documentName, Path pdfPath,
+                                  String ownerId, String ownerUsername) {
         String jobId = UUID.randomUUID().toString();
         IngestionJob job = new IngestionJob(
                 jobId, documentId, documentName, JobStatus.QUEUED,
                 "Queued for processing", Instant.now());
         jobs.put(jobId, job);
 
-        CompletableFuture.runAsync(() -> runJob(job, pdfPath), executor)
+        CompletableFuture.runAsync(() -> runJob(job, pdfPath, ownerId, ownerUsername), executor)
                 .exceptionally(ex -> {
                     log.error("Unexpected error in job {}: {}", jobId, ex.getMessage(), ex);
                     transition(job, JobStatus.FAILED, "Unexpected error: " + ex.getMessage());
@@ -65,7 +60,7 @@ public class IngestionService {
         return Optional.ofNullable(jobs.get(jobId));
     }
 
-    private void runJob(IngestionJob job, Path pdfPath) {
+    private void runJob(IngestionJob job, Path pdfPath, String ownerId, String ownerUsername) {
         boolean acquired = false;
         try {
             long waitMs = (long) (props.admissionWaitSeconds() * 1000);
@@ -87,7 +82,7 @@ public class IngestionService {
                     "Storing %d chunks in vector database…".formatted(chunks.size()));
             // Convert chunks to Spring AI Documents
             List<Document> documents = chunks.stream()
-                    .map(chunk -> createDocument(chunk))
+                    .map(chunk -> createDocument(chunk, ownerId, ownerUsername))
                     .collect(Collectors.toList());
             // Store embeddings in pgvector (Spring AI handles embedding generation)
             vectorStore.addAll(documents);
@@ -109,12 +104,14 @@ public class IngestionService {
         }
     }
 
-    private Document createDocument(DocumentChunk chunk) {
+    private Document createDocument(DocumentChunk chunk, String ownerId, String ownerUsername) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("chunkId", chunk.chunkId());
         metadata.put("documentId", chunk.documentId());
         metadata.put("documentName", chunk.documentName());
         metadata.put("pageNumber", chunk.pageNumber());
+        metadata.put("ownerId", ownerId);
+        metadata.put("ownerUsername", ownerUsername);
         return new Document(chunk.text(), metadata);
         }
 

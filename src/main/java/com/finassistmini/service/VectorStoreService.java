@@ -27,21 +27,22 @@ public class VectorStoreService {
         log.info("Added {} documents to vector store", documents.size());
         }
 
-    public void removeByDocumentId(String documentId) {
+    public void removeByDocumentId(String documentId, String ownerId) {
+        String filter = "documentId == '" + documentId + "' && ownerId == '" + ownerId + "'";
         List<Document> docs = vectorStore.similaritySearch(
                 SearchRequest.builder()
                         .query(" ")
                         .topK(10_000)
-                        .filterExpression("documentId == '" + documentId + "'")
+                        .filterExpression(filter)
                         .build());
         List<String> ids = docs.stream()
                 .map(Document::getId)
                 .collect(Collectors.toList());
         if (!ids.isEmpty()) {
             vectorStore.delete(ids);
-            log.info("Removed {} vectors for documentId='{}'", ids.size(), documentId);
+            log.info("Removed {} vectors for documentId='{}' and ownerId='{}'", ids.size(), documentId, ownerId);
         } else {
-            log.warn("No vectors found for documentId='{}'", documentId);
+            log.warn("No vectors found for documentId='{}' and ownerId='{}' to remove", documentId, ownerId);
         }
     }
 

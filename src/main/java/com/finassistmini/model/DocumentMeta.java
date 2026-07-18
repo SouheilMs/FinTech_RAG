@@ -15,7 +15,7 @@ import java.time.Instant;
 public class DocumentMeta {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "document_id")
     private String documentId;
     @Column(name = "name", nullable = false)
     private String name;

@@ -64,7 +64,7 @@ export default function DocumentList({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {documents.map((doc, index) => (
             <DocumentCard
-                key={doc.id ?? doc.name ?? `doc-${index}`}
+                key={doc.name}
                 doc={doc}
                 onReindex={onReindex}
                 onDelete={onDelete}

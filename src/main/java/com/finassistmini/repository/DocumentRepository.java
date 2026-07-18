@@ -5,15 +5,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface DocumentRepository extends JpaRepository<DocumentMeta, Long> {
+public interface DocumentRepository extends JpaRepository<DocumentMeta, String> {
 
-    List<DocumentMeta> findByOwnerIdOrderByUploadedAtDesc(String ownerId);
+    List<DocumentMeta> findAllByOwnerId(String ownerId);
 
     Optional<DocumentMeta> findByDocumentIdAndOwnerId(String documentId, String ownerId);
 
-    boolean existsByDocumentIdAndOwnerId(String documentId, String ownerId);
-
     boolean existsByDocumentId(String documentId);
-
-    Optional<DocumentMeta> findByDocumentIdAndOwnerIdAndStatus(String id, String ownerId, String status);
 }
