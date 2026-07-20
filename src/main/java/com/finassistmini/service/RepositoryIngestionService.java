@@ -1,5 +1,6 @@
 package com.finassistmini.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.finassistmini.config.RepositoryProperties;
 import com.finassistmini.dto.IndexRepositoryRequest;
 import com.finassistmini.dto.RepositoryDetailsResponse;
@@ -129,7 +130,6 @@ public class RepositoryIngestionService {
         GitRepository repo = findOrThrow(id, ownerId);
 
         vectorStoreService.removeByDocumentId(DOC_ID_PREFIX + id, repo.getOwnerId());
-        fileRepository.deleteByRepositoryId(id);
 
         repo.setStatus(RepositoryStatus.PENDING);
         repo.setSummary(null);
@@ -137,6 +137,7 @@ public class RepositoryIngestionService {
         repo.setTotalChunks(0);
         repoRepository.save(repo);
 
+        runIndexingPipeline(id, ownerId);
         return new RepositoryResponse(id, RepositoryStatus.PENDING.name());
     }
 

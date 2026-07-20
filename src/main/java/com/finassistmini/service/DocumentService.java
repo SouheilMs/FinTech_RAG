@@ -1,6 +1,5 @@
 package com.finassistmini.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finassistmini.config.AppProperties;
 import com.finassistmini.model.DocumentMeta;
 import com.finassistmini.repository.DocumentRepository;
@@ -11,47 +10,32 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class DocumentService {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
-
     private final AppProperties props;
-    private final ObjectMapper objectMapper;
-    private final ConcurrentHashMap<String, DocumentMeta> documents = new ConcurrentHashMap<>();
     private final VectorStoreService vectorStoreService;
     private final DocumentRepository documentRepository;
 
-    public DocumentService(AppProperties props, ObjectMapper objectMapper, VectorStoreService vectorStoreService, DocumentRepository documentRepository) {
+    public DocumentService(AppProperties props, VectorStoreService vectorStoreService, DocumentRepository documentRepository) {
         this.props = props;
-        this.objectMapper = objectMapper;
         this.vectorStoreService = vectorStoreService;
         this.documentRepository = documentRepository;
     }
 
     @PostConstruct
     public void load() {
-        Path index = indexFile();
-        if (!Files.exists(index)) return;
-        try {
-            List<DocumentMeta> metas = objectMapper.readValue(
-                    index.toFile(),
-                    objectMapper.getTypeFactory()
-                            .constructCollectionType(List.class, DocumentMeta.class));
-            metas.forEach(m -> documents.put(m.getDocumentId(), m));
-            log.info("Loaded {} document entries from index", documents.size());
-        } catch (IOException e) {
-            log.warn("Could not load document index: {}", e.getMessage());
+        List<DocumentMeta> allDocs = documentRepository.findAll();
+        if (!allDocs.isEmpty()) {
+            log.info("Loaded {} document entries from index", allDocs.size());
+        }
+        else {
+            log.info("No document entries found in index");
         }
     }
 
@@ -130,9 +114,5 @@ public class DocumentService {
 
     public Path getDocsDirectory() {
         return Path.of(props.docsDirectory());
-    }
-
-    private Path indexFile() {
-        return Path.of(props.docsDirectory()).resolve("index.json");
     }
 }

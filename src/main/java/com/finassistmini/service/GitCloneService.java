@@ -59,7 +59,6 @@ public class GitCloneService {
                 .call()){
             result = buildResult(git, repoPath);
         }
-        deleteGitDirectory(repoPath);
         return result;
     }
 
@@ -69,7 +68,6 @@ public class GitCloneService {
             git.pull().call();
             result = buildResult(git, repoPath);
         }
-        deleteGitDirectory(repoPath);
         return result;
     }
 
@@ -87,31 +85,6 @@ public class GitCloneService {
         }
 
         return new CloneResult(repoPath.toAbsolutePath().toString(), branch, commitHash);
-    }
-
-    private void deleteGitDirectory(Path repoPath) {
-        Path gitDir = repoPath.resolve(".git");
-        if (!Files.exists(gitDir)) {
-            return;
-        }
-        try {
-            Thread.sleep(500);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        try (var paths = Files.walk(gitDir)) {
-            paths.sorted(Comparator.reverseOrder())
-                    .forEach(path -> {
-                        try {
-                            Files.deleteIfExists(path);
-                        } catch (IOException e) {
-                            log.warn("Could not delete {}", path);
-                        }
-                    });
-            log.info("Deleted .git directory");
-        } catch (IOException e) {
-            log.error("Failed deleting .git: {}", e.getMessage());
-        }
     }
 
     public record CloneResult(String localPath, String branch, String commitHash) {}

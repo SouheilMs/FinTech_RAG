@@ -1,6 +1,6 @@
 package com.finassistmini.service;
 
-import com.finassistmini.config.RepositoryProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finassistmini.model.GitRepository;
 import com.finassistmini.repository.GitRepositoryRepository;
 import org.slf4j.Logger;
@@ -30,14 +30,11 @@ public class RepositorySummaryService {
 
     private final ChatModel                chatModel;
     private final GitRepositoryRepository  repositoryRepo;
-    private final RepositoryProperties     props;
 
     public RepositorySummaryService(ChatModel chatModel,
-                                    GitRepositoryRepository repositoryRepo,
-                                    RepositoryProperties props) {
+                                    GitRepositoryRepository repositoryRepo ) {
         this.chatModel      = chatModel;
         this.repositoryRepo = repositoryRepo;
-        this.props          = props;
     }
 
     public String getSummary(GitRepository repository) {
@@ -48,11 +45,7 @@ public class RepositorySummaryService {
         return generateAndCache(repository);
     }
 
-    public String regenerate(GitRepository repository) {
-        return generateAndCache(repository);
-    }
-
-    private String generateAndCache(GitRepository repository) {
+    private String generateAndCache(GitRepository repository)  {
         log.info("Generating AI summary for repository: {}", repository.getName());
 
         String context = buildSummaryContext(repository);
