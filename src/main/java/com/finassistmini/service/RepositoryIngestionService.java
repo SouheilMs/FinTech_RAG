@@ -151,8 +151,8 @@ public class RepositoryIngestionService {
 
         boolean cached = repo.getSummary() != null && !repo.getSummary().isBlank();
         String summary = summaryService.getSummary(repo);
-
-        return new RepositorySummaryResponse(id, repo.getName(), summary, cached);
+        String fileTree = summaryService.getRepositoryFileTree(repo.getId());
+        return new RepositorySummaryResponse(id, repo.getName(), summary, fileTree, cached);
     }
 
     @Async("repositoryIndexExecutor")

@@ -25,10 +25,10 @@ function AppLayout() {
                 <ProtectedRoute><ChatPage /></ProtectedRoute>
               }/>
               <Route path="/documents" element={
-                <ProtectedRoute adminOnly><DocumentsPage /></ProtectedRoute>
+                <ProtectedRoute><DocumentsPage /></ProtectedRoute>
               }/>
                 <Route path="/repositories" element={
-                    <ProtectedRoute adminOnly><RepositoriesPage /></ProtectedRoute>
+                    <ProtectedRoute><RepositoriesPage /></ProtectedRoute>
                 }/>
                 <Route path="/users" element={
                     <ProtectedRoute adminOnly><UserManagementPage /></ProtectedRoute>

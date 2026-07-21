@@ -18,8 +18,8 @@ export default function Navbar() {
 
   const navItems = [
     { to: '/',          icon: MessageSquare, label: 'AI Assistant', show: true    },
-    { to: '/documents', icon: FileText,      label: 'Documents',    show: isAdmin },
-    { to: '/repositories', icon: GitBranch,     label: 'Repositories',  show: isAdmin  },
+    { to: '/documents', icon: FileText,      label: 'Documents',    show: true },
+    { to: '/repositories', icon: GitBranch,     label: 'Repositories',  show: true  },
   ].filter((i) => i.show)
 
   const title = titles[pathname] ?? 'FinAssist'

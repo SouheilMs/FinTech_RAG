@@ -73,6 +73,7 @@ export interface RepositorySummaryResponse {
   repositoryId:    number
   repositoryName:  string
   summary:         string
+  fileTree:          string
   cached:          boolean
 }
 
