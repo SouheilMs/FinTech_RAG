@@ -14,13 +14,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 @Service
 public class RepositorySummaryService {
 
     private static final Logger log = LoggerFactory.getLogger(RepositorySummaryService.class);
     private static final int MAX_CONTEXT_CHARS = 12_000;
+    private static final int MAX_TREE_CONTEXT_CHARS =  3_000;
+    private static final String OVERVIEW_HEADING = "## Overview";
+    private static final String STACK_HEADING = "## Stack";
 
     private final ChatModel chatModel;
     private final GitRepositoryRepository repositoryRepo;
@@ -43,30 +45,33 @@ public class RepositorySummaryService {
         return generateAndCache(repository);
     }
 
+    public boolean hasUsableCachedSummary(GitRepository repository) {
+        if (repository == null) {
+            return false;
+        }
+        String summary = repository.getSummary();
+        return summary != null && !summary.isBlank() && isCurrentFormat(summary);
+    }
+
     public String getRepositoryFileTree(Long repositoryId) {
         List<RepositoryFile> files = repositoryFileRepo.findByRepositoryId(repositoryId);
-        if (files.isEmpty()) {
-            return "(no indexed file metadata available)";
-        }
+        if (files.isEmpty()) return "(no indexed file metadata available)";
 
-        Map<String, RepositoryFile> byPath = files.stream()
+        TreeNode root = new TreeNode("");
+        files.stream()
                 .filter(f -> f.getPath() != null && !f.getPath().isBlank())
-                .sorted((a, b) -> a.getPath().compareToIgnoreCase(b.getPath()))
-                .collect(Collectors.toMap(
-                        RepositoryFile::getPath,
-                        f -> f,
-                        (left, right) -> left,
-                        TreeMap::new
-                ));
+                .map(f -> f.getPath().replace('\\', '/'))
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .forEach(root::insert);
 
         StringBuilder tree = new StringBuilder();
-        TreeNode root = new TreeNode("");
-        for (String path : byPath.keySet()) {
-            root.insert(path);
-        }
-        root.render(tree, 0);
+        root.render(tree, "", true);
 
-        return tree.toString().trim();
+        String result = tree.toString().trim();
+        if (result.length() > MAX_TREE_CONTEXT_CHARS) {
+            return result.substring(0, MAX_TREE_CONTEXT_CHARS) + "\n... (truncated)";
+        }
+        return result;
     }
 
     private String generateAndCache(GitRepository repository) {
@@ -82,10 +87,11 @@ public class RepositorySummaryService {
                     .getOutput()
                     .getText();
 
-            repository.setSummary(summary);
+            String normalizedSummary = summary == null ? "" : summary.strip();
+            repository.setSummary(normalizedSummary);
             repositoryRepo.save(repository);
             log.info("Summary generated and cached for repository {}", repository.getId());
-            return summary;
+            return normalizedSummary;
         } catch (Exception e) {
             log.error("Failed to generate summary for repository {}: {}", repository.getId(), e.getMessage());
             return "Summary generation failed: " + e.getMessage();
@@ -157,87 +163,100 @@ public class RepositorySummaryService {
 
     private String buildSummaryPrompt(String name, String url, String context) {
         return """
-            You are GitHub Copilot generating a GitHub repository overview.
+        You are a senior software architect reviewing a GitHub project.
 
-            Your task:
-            Explain what the APPLICATION does, not how the repository is organized.
+        Your goal is to provide a HIGH-LEVEL overview of the application, helping a developer quickly understand what the project is about without reading the code.
 
-            Repository:
-            %s
+        Project Name:
+        %s
 
-            Context:
-            %s
+        Repository URL:
+        %s
 
+        Project Context:
+        %s
 
-            Return ONLY this format:
+        Produce the response using exactly these sections:
 
-            Overview:
-            <maximum 3 sentences>
+        ## Overview
+        Write one short paragraph (3–5 sentences) describing:
+        - What the application is.
+        - Its primary purpose.
+        - Who it is intended for.
+        - The problem it solves.
+        - The overall value it provides.
 
-            Stack:
-            - Language(s):
-            - Framework / Platform:
-            - Database:
-            - Infrastructure:
+        ## Key Capabilities
+        List 4–8 of the application's main capabilities or features that are explicitly supported by the provided context.
 
+        ## Technology Stack
+        Summarize only the major technologies:
+        - Languages
+        - Frameworks / Platforms
+        - Database (if any)
 
-            Rules:
-            - The Overview must be a product description.
-            - A user should understand the purpose of the application immediately.
-            - Mention the problem solved and main user value.
+        Rules:
+        - Focus on the application, not the source code.
+        - Explain WHAT the project does rather than HOW it is implemented.
+        - Keep the explanation understandable for someone who has never seen the repository.
+        - Mention technologies only if they are clearly supported by the context.
+        - If some information is unavailable, simply omit it instead of guessing.
 
-            NEVER mention:
-            - repository
-            - files
-            - folders
-            - classes
-            - packages
-            - chunks
-            - embeddings
-            - metadata
-            - indexing
-            - scanning
+        Do NOT include:
+        - package names
+        - class names
+        - folder structure
+        - repository statistics
+        - code organization
+        - implementation details
+        - design patterns
+        - architecture diagrams
+        - APIs
+        - configuration files
+        - dependencies list
+        - indexing, embeddings, vector stores, chunking or metadata
 
-            NEVER add:
-            - Introduction
-            - Conclusion
-            - Architecture explanation
-            - Implementation details
-            - Feature list
-            - Recommendations
-
-            Do not invent information.
-            Use only the provided context.
-
-            Maximum total response length: 100 words.
-            """.formatted(name, context);
+        Keep the entire response under 200 words.
+        """.formatted(name, url, context);
     }
 
-    private static class TreeNode {
-        private final String name;
-        private final Map<String, TreeNode> children = new TreeMap<>(java.lang.String.CASE_INSENSITIVE_ORDER);
+    private boolean isCurrentFormat(String summary) {
+        String value = summary == null ? "" : summary.toLowerCase();
+        return value.contains(OVERVIEW_HEADING.toLowerCase()) && value.contains(STACK_HEADING.toLowerCase());
+    }
 
-        private TreeNode(String name) {
-            this.name = name;
-        }
+    private static final class TreeNode {
 
-        private void insert(String path) {
-            String[] parts = path.split("/");
+        private final String                name;
+        private final Map<String, TreeNode> children =
+                new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+
+        TreeNode(String name) { this.name = name; }
+
+        void insert(String path) {
             TreeNode current = this;
-            for (String part : parts) {
-                if (part.isBlank()) {
-                    continue;
+            for (String part : path.split("/")) {
+                if (!part.isBlank()) {
+                    current = current.children.computeIfAbsent(part, TreeNode::new);
                 }
-                current = current.children.computeIfAbsent(part, TreeNode::new);
             }
         }
 
-        private void render(StringBuilder sb, int depth) {
-            if (!name.isBlank()) {
-                sb.append("  ".repeat(Math.max(0, depth - 1))).append("- ").append(name).append('\n');
+        void render(StringBuilder sb, String prefix, boolean isRoot) {
+            if (!isRoot) {
+                sb.append(name);
+                if (!children.isEmpty()) sb.append('/');
+                sb.append('\n');
             }
-            for (TreeNode child : children.values()) {
-                child.render(sb, depth + (name.isBlank() ? 0 : 1));
+
+            List<Map.Entry<String, TreeNode>> entries = new ArrayList<>(children.entrySet());
+            for (int i = 0; i < entries.size(); i++) {
+                boolean  isLast  = (i == entries.size() - 1);
+                TreeNode child   = entries.get(i).getValue();
+                String   conn    = isLast ? "└── " : "├── ";
+                String   cont    = isLast ? "    " : "│   ";
+                sb.append(prefix).append(conn);
+                child.render(sb, prefix + cont, false);
             }
         }
     }
