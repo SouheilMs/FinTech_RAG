@@ -93,19 +93,30 @@ export default function RepositorySummaryDialog({ open, repositoryId, repository
 
                     {/* Summary content */}
                     {data && !loading && (
-                        <div className="prose prose-invert prose-sm max-w-none
-              prose-headings:text-text-primary prose-headings:font-medium
-              prose-p:text-text-secondary prose-p:leading-relaxed prose-p:my-2
-              prose-li:text-text-secondary prose-li:my-0.5
-              prose-strong:text-text-primary prose-strong:font-medium
-              prose-code:text-accent prose-code:bg-surface prose-code:px-1 prose-code:rounded prose-code:text-xs
-              prose-pre:bg-surface prose-pre:border prose-pre:border-surface-border prose-pre:text-xs
-              prose-h1:text-base prose-h2:text-sm prose-h3:text-sm
-              prose-ul:my-2 prose-ol:my-2
-            ">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {data.summary}
-                            </ReactMarkdown>
+                        <div className="space-y-5">
+                            <div className="prose prose-invert prose-sm max-w-none
+                prose-headings:text-text-primary prose-headings:font-medium
+                prose-p:text-text-secondary prose-p:leading-relaxed prose-p:my-2
+                prose-li:text-text-secondary prose-li:my-0.5
+                prose-strong:text-text-primary prose-strong:font-medium
+                prose-code:text-accent prose-code:bg-surface prose-code:px-1 prose-code:rounded prose-code:text-xs
+                prose-pre:bg-surface prose-pre:border prose-pre:border-surface-border prose-pre:text-xs
+                prose-h1:text-base prose-h2:text-sm prose-h3:text-sm
+                prose-ul:my-2 prose-ol:my-2
+              ">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {data.summary}
+                                </ReactMarkdown>
+                            </div>
+
+                            {data.fileTree && (
+                                <div>
+                                    <p className="text-sm font-medium text-text-primary mb-2">File tree</p>
+                                    <pre className="text-xs text-text-secondary bg-surface border border-surface-border rounded-xl p-3 overflow-x-auto whitespace-pre">
+                    {data.fileTree}
+                  </pre>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

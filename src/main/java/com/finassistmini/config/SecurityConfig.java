@@ -32,8 +32,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/chat", "/chat/stream").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers("/documents/**").hasRole("ADMIN")
-                        .requestMatchers("/repositories/**").hasRole("ADMIN")
+                        .requestMatchers("/documents/**").hasAnyRole("ADMIN","USER")
+                        .requestMatchers("/repositories/**").hasAnyRole("ADMIN","USER")
                         .requestMatchers("/users/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
