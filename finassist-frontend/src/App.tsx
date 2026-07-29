@@ -1,11 +1,12 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthProvider }    from '@/context/AuthContext'
-import ProtectedRoute      from '@/components/layout/ProtectedRoute'
-import Sidebar             from '@/components/layout/Sidebar'
-import Navbar              from '@/components/layout/Navbar'
-import ChatPage            from '@/pages/ChatPage'
-import DocumentsPage       from '@/pages/DocumentsPage'
+import { AuthProvider }  from '@/context/AuthContext'
+import { ConversationProvider }  from '@/context/ConversationContext'
+import ProtectedRoute from '@/components/layout/ProtectedRoute'
+import Sidebar from '@/components/layout/Sidebar'
+import Navbar from '@/components/layout/Navbar'
+import ChatPage from '@/pages/ChatPage'
+import DocumentsPage from '@/pages/DocumentsPage'
 import RepositoriesPage from "@/pages/RepositoriesPage.tsx";
 import UserManagementPage from "@/pages/UserManagementPage.tsx";
 
@@ -44,11 +45,13 @@ export default function App() {
   return (
       <QueryClientProvider client={queryClient}>
         <AuthProvider>                        {/* no LoginPage route — Keycloak handles login */}
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Routes>
-              <Route path="/*" element={<AppLayout />} />
-            </Routes>
-          </BrowserRouter>
+            <ConversationProvider>  {/* Provides context for the active conversation */}
+                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                    <Routes>
+                        <Route path="/*" element={<AppLayout />} />
+                    </Routes>
+                </BrowserRouter>
+            </ConversationProvider>
         </AuthProvider>
       </QueryClientProvider>
   )
