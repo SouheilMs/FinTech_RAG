@@ -71,6 +71,64 @@ public class ChatService {
         }
     }
 
+    public StreamingContext streamWithMemory(String question, String memoryContext, String ownerId) throws InterruptedException {
+        long waitMs = (long) (props.admissionWaitSeconds() * 1000);
+        boolean acquired = semaphore.tryAcquire(waitMs, TimeUnit.MILLISECONDS);
+        if (!acquired) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Chat server is busy — please retry shortly");
+        }
+        try {
+            // RAG search scoped to this user's documents
+            List<RetrievedChunk> chunks = vectorStore.search(question, ownerId, props.retrievalK());
+            String ragContext = chunks.isEmpty() ? "" : buildContext(chunks);
+
+            String fullPrompt = buildConversationPrompt(question, memoryContext, ragContext);
+
+            List<SourceReference> sources = chunks.stream()
+                    .map(c -> new SourceReference(c.documentName(), c.pageNumber()))
+                    .collect(Collectors.collectingAndThen(
+                            Collectors.toCollection(LinkedHashSet::new), ArrayList::new));
+
+            Flux<String> tokens = chatModel.stream(new Prompt(fullPrompt))
+                    .map(r -> {
+                        var g = r.getResult();
+                        if (g == null) return "";
+                        var o = g.getOutput();
+                        if (o == null) return "";
+                        String t = o.getText();
+                        return t != null ? t : "";
+                    })
+                    .filter(t -> !t.isEmpty())
+                    .doFinally(signal -> semaphore.release());
+
+            return new StreamingContext(sources, tokens);
+
+        } catch (Exception e) {
+            semaphore.release();
+            throw e;
+        }
+    }
+
+    private String buildConversationPrompt(String question, String memoryContext, String ragContext) {
+        String systemPart = """
+            You are a financial document assistant. \
+            Answer the question using ONLY the information provided in the context below. \
+            If the context does not contain enough information to answer, say: \
+            "I cannot find this information in the provided documents."
+            Do not speculate or add information not present in the context.
+            """;
+        StringBuilder sb = new StringBuilder(systemPart).append("\n");
+        if (!memoryContext.isBlank()) {
+            sb.append(memoryContext);
+        }
+        if (!ragContext.isBlank()) {
+            sb.append("Context from documents:\n").append(ragContext).append("\n\n");
+        }
+        sb.append("Current question: ").append(question).append("\n\nAnswer:");
+        return sb.toString();
+    }
+
     private String buildContext(List<RetrievedChunk> chunks) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < chunks.size(); i++) {

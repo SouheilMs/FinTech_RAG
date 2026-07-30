@@ -1,5 +1,3 @@
-// ─── Document types ────────────────────────────────────────────────────────
-
 export type DocumentStatus = 'PENDING' | 'PROCESSING' | 'INDEXED' | 'FAILED'
 
 export interface FinDocument {
@@ -13,14 +11,12 @@ export interface FinDocument {
   sizeBytes?: number
 }
 
-// ─── Chat types ─────────────────────────────────────────────────────────────
-
 export interface SourceReference {
   documentName: string
-  pageNumber:   number
-  documentId?:  string
-  chunkId?:     string
-  excerpt?:     string
+  pageNumber: number
+  documentId?: string
+  chunkId?: string
+  excerpt?:  string
 }
 
 export interface ChatRequest {
@@ -33,7 +29,21 @@ export interface ChatResponse {
   sources: SourceReference[]
 }
 
-// ─── UI-only types ──────────────────────────────────────────────────────────
+export interface Conversation {
+  id: string
+  title: string
+  pinned: boolean
+  createdAt: string
+  lastMessageAt: string | null
+}
+
+export interface ApiMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  sources?: SourceReference[]
+  createdAt: string
+}
 
 export type MessageRole = 'user' | 'assistant'
 
@@ -49,35 +59,33 @@ export interface ChatMessage {
 export type RepositoryStatus = 'PENDING' | 'CLONING' | 'INDEXING' | 'COMPLETED' | 'FAILED'
 
 export interface GitRepository {
-  id:           number
-  url:          string
-  name:         string
-  owner:        string
-  branch:       string | null
-  commitHash:   string | null
-  status:       RepositoryStatus
+  id: number
+  url: string
+  name: string
+  owner: string
+  branch: string | null
+  commitHash: string | null
+  status: RepositoryStatus
   errorMessage: string | null
   indexedFiles: number
-  totalChunks:  number
-  hasSummary:   boolean
-  createdAt:    string
-  indexedAt:    string | null
+  totalChunks: number
+  hasSummary: boolean
+  createdAt: string
+  indexedAt: string | null
 }
 
 export interface RepositorySubmitResponse {
   repositoryId: number
-  status:       string
+  status: string
 }
 
 export interface RepositorySummaryResponse {
-  repositoryId:    number
-  repositoryName:  string
-  summary:         string
-  fileTree:          string
-  cached:          boolean
+  repositoryId: number
+  repositoryName: string
+  summary: string
+  fileTree: string
+  cached: boolean
 }
-
-// ─── API error shape ────────────────────────────────────────────────────────
 
 export interface ApiError {
   message: string
