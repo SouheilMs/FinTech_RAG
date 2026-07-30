@@ -61,12 +61,14 @@ export function useConversationChat(conversationId: string | null) {
                     setMessages(prev => prev.map(m =>
                         m.id === aiId ? { ...m, content: m.content + token } : m))
                 },
-                onSources: (sources) => { pendingSources.current = sources },
+                onSources: (sources) => { pendingSources.current = sources
+                    setMessages(prev => prev.map(m =>
+                        m.id === aiId ? { ...m, sources: sources } : m))
+                },
                 onDone: () => {
                     setMessages(prev => prev.map(m =>
                         m.id === aiId
-                            ? { ...m, isLoading: false, sources: pendingSources.current }
-                            : m))
+                            ? { ...m, isLoading: false, sources: m.sources ?? pendingSources.current } : m ))
                     setThinking(false)
                 },
                 onError: (msg) => {

@@ -17,14 +17,22 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
     const [draft, setDraft] = useState(conversation.title)
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [busy, setBusy] = useState(false)
-    const inputRef = useRef<HTMLInputElement>(null)
+    const [error, setError] = useState<string | null>(null)
 
-    // Sync draft when the title changes externally (e.g. after a successful rename)
-    useEffect(() => { setDraft(conversation.title) }, [conversation.title])
+    const inputRef    = useRef<HTMLInputElement>(null)
 
-    // Focus input as soon as rename mode activates
+    const committingRef = useRef(false)
+
     useEffect(() => {
-        if (isRenaming) inputRef.current?.focus()
+        setDraft(conversation.title)
+    }, [conversation.title])
+
+    useEffect(() => {
+        if (isRenaming) {
+            committingRef.current = false
+            setError(null)
+            setTimeout(() => inputRef.current?.focus(), 0)
+        }
     }, [isRenaming])
 
     const startRename = (e: React.MouseEvent) => {
@@ -33,20 +41,39 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
         setRenaming(true)
     }
 
-    const commitRename = async () => {
-        const title = draft.trim()
-        if (title && title !== conversation.title) {
-            setBusy(true)
-            try { await onRename(title) } finally { setBusy(false) }
-        } else {
-            setDraft(conversation.title)
-        }
-        setRenaming(false)
-    }
-
     const cancelRename = () => {
+        if (committingRef.current) return
         setDraft(conversation.title)
         setRenaming(false)
+        setError(null)
+    }
+
+    const commitRename = async () => {
+        if (committingRef.current) return
+        const title = draft.trim()
+        if (!title) {
+            cancelRename()
+            return
+        }
+
+        if (title === conversation.title) {
+            setRenaming(false)
+            return
+        }
+
+        committingRef.current = true
+        setBusy(true)
+        setError(null)
+
+        try {
+            await onRename(title)
+            setRenaming(false)
+        } catch {
+            setError('Rename failed')
+            committingRef.current = false
+        } finally {
+            setBusy(false)
+        }
     }
 
     const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -57,18 +84,31 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
     const handlePin = async (e: React.MouseEvent) => {
         e.stopPropagation()
         setBusy(true)
-        try { await onPin(!conversation.pinned) } finally { setBusy(false) }
+        setError(null)
+        try {
+            await onPin(!conversation.pinned)
+        } catch {
+            setError('Failed to update pin')
+        } finally {
+            setBusy(false)
+        }
     }
 
     const handleDeleteConfirm = async (e: React.MouseEvent) => {
         e.stopPropagation()
         setBusy(true)
-        try { await onDelete() } finally { setBusy(false); setConfirmDelete(false) }
+        try {
+            await onDelete()
+        } catch {
+            setError('Delete failed')
+            setBusy(false)
+            setConfirmDelete(false)
+        }
     }
 
     return (
         <div
-            onClick={() => !isRenaming && !confirmDelete && onSelect()}
+            onClick={() => !isRenaming && !confirmDelete && !busy && onSelect()}
             className={cn(
                 'group relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs transition-all cursor-pointer select-none',
                 isActive
@@ -77,7 +117,7 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
                 busy && 'opacity-60 pointer-events-none',
             )}
         >
-            {/* Pin dot — always visible when pinned */}
+            {/* Pin dot */}
             {conversation.pinned && !isRenaming && !confirmDelete && (
                 <span className={cn(
                     'flex-shrink-0 w-1 h-1 rounded-full',
@@ -91,26 +131,32 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
                     className="flex items-center gap-1 flex-1 min-w-0"
                     onClick={e => e.stopPropagation()}
                 >
-                    <input
-                        ref={inputRef}
-                        value={draft}
-                        onChange={e => setDraft(e.target.value)}
-                        onKeyDown={handleKey}
-                        onBlur={commitRename}
-                        maxLength={120}
-                        className="flex-1 min-w-0 bg-transparent outline-none border-b border-primary text-text-primary text-xs py-0.5"
-                    />
+                    <div className="flex-1 min-w-0">
+                        <input
+                            ref={inputRef}
+                            value={draft}
+                            onChange={e => { setDraft(e.target.value); setError(null) }}
+                            onKeyDown={handleKey}
+                            onBlur={cancelRename}
+                            maxLength={120}
+                            className="w-full bg-transparent outline-none border-b border-primary text-text-primary text-xs py-0.5"
+                        />
+                        {error && (
+                            <p className="text-[10px] text-danger mt-0.5">{error}</p>
+                        )}
+                    </div>
+
                     <button
-                        onMouseDown={e => { e.preventDefault(); commitRename() }}
+                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitRename() }}
                         className="flex-shrink-0 p-0.5 rounded text-success hover:bg-success/10 transition-colors"
-                        title="Save"
+                        title="Save (Enter)"
                     >
                         <Check size={11} />
                     </button>
                     <button
-                        onMouseDown={e => { e.preventDefault(); cancelRename() }}
+                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); cancelRename() }}
                         className="flex-shrink-0 p-0.5 rounded text-text-muted hover:bg-surface-raised transition-colors"
-                        title="Cancel"
+                        title="Cancel (Escape)"
                     >
                         <X size={11} />
                     </button>
@@ -128,7 +174,7 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
                     <button
                         onClick={handleDeleteConfirm}
                         className="flex-shrink-0 p-0.5 rounded bg-danger/10 text-danger hover:bg-danger/20 transition-colors"
-                        title="Confirm delete"
+                        title="Confirm"
                     >
                         <Check size={11} />
                     </button>
@@ -146,28 +192,24 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
                 <>
                     <span className="flex-1 min-w-0 truncate">{conversation.title}</span>
 
-                    {/* Action buttons — appear on hover or when item is active */}
+                    {error && (
+                        <span className="text-[10px] text-danger flex-shrink-0" title={error}>!</span>
+                    )}
+
                     <div className={cn(
                         'flex items-center gap-0.5 flex-shrink-0 transition-opacity',
                         'opacity-0 group-hover:opacity-100',
                         isActive && 'opacity-100',
                     )}>
-                        <ActionButton
-                            title="Rename"
-                            onClick={startRename}
-                        >
+                        <ActionButton title="Rename" onClick={startRename}>
                             <Pencil size={11} />
                         </ActionButton>
-
                         <ActionButton
                             title={conversation.pinned ? 'Unpin' : 'Pin'}
                             onClick={handlePin}
                         >
-                            {conversation.pinned
-                                ? <PinOff size={11} />
-                                : <Pin    size={11} />}
+                            {conversation.pinned ? <PinOff size={11} /> : <Pin size={11} />}
                         </ActionButton>
-
                         <ActionButton
                             title="Delete"
                             onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
@@ -186,7 +228,7 @@ function ActionButton({ children, title, onClick, danger = false }: {
     children: React.ReactNode
     title: string
     onClick: (e: React.MouseEvent) => void
-    danger?: boolean
+    danger?:  boolean
 }) {
     return (
         <button

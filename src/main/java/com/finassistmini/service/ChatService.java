@@ -71,10 +71,8 @@ public class ChatService {
         }
     }
 
-    public StreamingContext streamWithMemory(String question,
-                                             String memoryContext,
-                                             String ownerId) throws InterruptedException {
-        long    waitMs   = (long) (props.admissionWaitSeconds() * 1000);
+    public StreamingContext streamWithMemory(String question, String memoryContext, String ownerId) throws InterruptedException {
+        long waitMs = (long) (props.admissionWaitSeconds() * 1000);
         boolean acquired = semaphore.tryAcquire(waitMs, TimeUnit.MILLISECONDS);
         if (!acquired) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,

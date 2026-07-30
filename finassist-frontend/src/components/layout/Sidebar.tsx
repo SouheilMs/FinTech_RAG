@@ -101,25 +101,19 @@ export default function Sidebar() {
                             </div>
                         ) : (
                             sidebarConversations.map(conv => (
-                                <SidebarConversationItem
-                                    key={conv.id}
-                                    conversation={conv}
-                                    isActive={conv.id === activeId}
-                                    onSelect={() => handleConversationSelect(conv.id)}
-                                    onRename={title =>
-                                        renameConversation({ id: conv.id, title }).then(invalidate)
-                                    }
-                                    onPin={pinned =>
-                                        pinConversation({ id: conv.id, pinned }).then(invalidate)
-                                    }
-                                    onDelete={async () => {
-                                        await deleteConversation(conv.id)
-                                        if (activeId === conv.id) setActiveId(null)
-                                        invalidate()
-                                    }}
-                                />
-                            ))
-                        )}
+                                    <SidebarConversationItem
+                                        key={conv.id}
+                                        conversation={conv}
+                                        isActive={conv.id === activeId}
+                                        onSelect={() => handleConversationSelect(conv.id)}
+                                        onRename={title => renameConversation(conv.id, title)}
+                                        onPin={pinned => pinConversation(conv.id, pinned)}
+                                        onDelete={async () => {
+                                            await deleteConversation(conv.id)
+                                            if (activeId === conv.id) setActiveId(null)
+                                        }}
+                                    />
+                                )))}
 
                         {/* "See all" nudge */}
                         {conversations.length > MAX_SIDEBAR_CONVERSATIONS && (

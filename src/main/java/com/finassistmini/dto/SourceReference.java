@@ -6,8 +6,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record SourceReference(
 
         @Schema(description = "Original PDF filename", example = "fees.pdf")
-        String document,
+        String documentName,
 
         @Schema(description = "1-based page number in the source document", example = "2")
-        int page
+        int pageNumber
 ) {}

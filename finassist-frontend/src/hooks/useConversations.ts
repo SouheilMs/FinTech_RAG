@@ -4,7 +4,7 @@ import { conversationService } from '@/services/conversation.service'
 const KEY = ['conversations'] as const
 
 export function useConversations(search?: string) {
-    const qc = useQueryClient()
+    const qc  = useQueryClient()
     const inv = () => qc.invalidateQueries({ queryKey: KEY })
 
     const query = useQuery({
@@ -38,10 +38,19 @@ export function useConversations(search?: string) {
     return {
         conversations: query.data ?? [],
         isLoading: query.isLoading,
-        createConversation: createMutation.mutateAsync,
-        renameConversation: renameMutation.mutateAsync,
-        pinConversation: pinMutation.mutateAsync,
-        deleteConversation: deleteMutation.mutateAsync,
+
+        createConversation: (firstMessage: string) =>
+            createMutation.mutateAsync(firstMessage),
+
+        renameConversation: (id: string, title: string) =>
+            renameMutation.mutateAsync({ id, title }),
+
+        pinConversation: (id: string, pinned: boolean) =>
+            pinMutation.mutateAsync({ id, pinned }),
+
+        deleteConversation: (id: string) =>
+            deleteMutation.mutateAsync(id),
+
         invalidate: inv,
     }
 }
