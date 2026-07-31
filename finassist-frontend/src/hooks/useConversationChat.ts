@@ -26,8 +26,10 @@ export function useConversationChat(conversationId: string | null) {
 
     useEffect(() => {
         convIdRef.current = conversationId
-        if (!conversationId) { setMessages([]); return }
-
+        if (!conversationId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setMessages([]);
+            return }
         setLoadingHistory(true)
         conversationService.getMessages(conversationId)
             .then(msgs => setMessages(msgs.map(toUiMessage)))

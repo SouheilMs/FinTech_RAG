@@ -90,7 +90,9 @@ export const conversationService = {
                 switch (event.name) {
                     case 'token':   cb.onToken(event.data); break
                     case 'sources':
-                        try { cb.onSources(JSON.parse(event.data)) } catch {}
+                        try { cb.onSources(JSON.parse(event.data)) } catch ( error ) {
+                            console.warn(`Failed to parse sources: ${error}`)
+                        }
                         break
                     case 'done': cb.onDone(); return
                     case 'error': cb.onError(event.data); return
