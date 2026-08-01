@@ -65,14 +65,13 @@ jobs:
   validate-compose:
     name: Validate docker-compose
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Docker Compose v2
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y docker-compose-plugin
+      - name: Check Docker Compose version
+        run: docker compose version
 
       - name: Validate docker-compose.yml syntax
         run: docker compose config --quiet
