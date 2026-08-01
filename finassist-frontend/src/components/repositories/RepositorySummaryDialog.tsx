@@ -1,34 +1,24 @@
-import { useEffect, useState } from 'react'
 import { X, Sparkles, Loader2, BookOpen } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { useQuery } from '@tanstack/react-query'
 import { repositoryService } from '@/services/repository.service'
 import type { RepositorySummaryResponse } from '@/types'
 
 interface Props {
-    open:           boolean
-    repositoryId:   number | null
+    open: boolean
+    repositoryId: number | null
     repositoryName: string
-    onClose:        () => void
+    onClose: () => void
 }
 
 export default function RepositorySummaryDialog({ open, repositoryId, repositoryName, onClose }: Props) {
-    const [data, setData]       = useState<RepositorySummaryResponse | null>(null)
-    const [loading, setLoading] = useState(false)
-    const [error, setError]     = useState<string | null>(null)
-
-    // Fetch summary when the dialog opens
-    useEffect(() => {
-        if (!open || repositoryId == null) return
-        setData(null)
-        setError(null)
-        setLoading(true)
-
-        repositoryService.getSummary(repositoryId)
-            .then(setData)
-            .catch((e: { message?: string }) => setError(e.message ?? 'Failed to load summary'))
-            .finally(() => setLoading(false))
-    }, [open, repositoryId])
+    const { data,  isLoading, error } = useQuery<RepositorySummaryResponse>({
+        queryKey: ['repository-summary', repositoryId],
+        queryFn: () => repositoryService.getSummary(repositoryId!),
+        enabled: open && repositoryId != null,
+        staleTime: 5 * 60 * 1000,
+    })
 
     if (!open) return null
 
@@ -37,7 +27,7 @@ export default function RepositorySummaryDialog({ open, repositoryId, repository
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={!loading ? onClose : undefined}
+                onClick={isLoading ? onClose : undefined}
             />
 
             {/* Panel */}
@@ -74,7 +64,7 @@ export default function RepositorySummaryDialog({ open, repositoryId, repository
                 <div className="flex-1 overflow-y-auto px-6 py-5">
 
                     {/* Loading */}
-                    {loading && (
+                    {isLoading && (
                         <div className="flex flex-col items-center justify-center py-16 gap-3">
                             <Loader2 size={28} className="animate-spin text-accent" />
                             <div className="text-center">
@@ -85,14 +75,14 @@ export default function RepositorySummaryDialog({ open, repositoryId, repository
                     )}
 
                     {/* Error */}
-                    {error && !loading && (
+                    {error && !isLoading && (
                         <div className="flex flex-col items-center justify-center py-16 gap-3">
-                            <p className="text-sm text-danger">{error}</p>
+                            <p className="text-sm text-danger">Failed to load summary</p>
                         </div>
                     )}
 
                     {/* Summary content */}
-                    {data && !loading && (
+                    {data && !isLoading && (
                         <div className="space-y-5">
                             <div className="prose prose-invert prose-sm max-w-none
                 prose-headings:text-text-primary prose-headings:font-medium

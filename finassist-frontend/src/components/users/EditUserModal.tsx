@@ -16,14 +16,18 @@ export default function EditUserModal({ open, user, onClose, onSubmit, isLoading
     const [apiError, setApiError] = useState<string | null>(null)
 
     useEffect(() => {
-        if (user) setForm({
-            username:  user.username,
-            email:     user.email,
-            firstName: user.firstName,
-            lastName:  user.lastName,
-            enabled:   user.enabled,
-        })
-        setApiError(null)
+        if (user) {
+            Promise.resolve().then(() => {
+                setForm({
+                    username: user.username,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    enabled: user.enabled,
+                })
+                setApiError(null)
+            })
+        }
     }, [user])
 
     if (!open || !user) return null

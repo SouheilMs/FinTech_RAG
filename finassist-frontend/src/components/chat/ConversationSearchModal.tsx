@@ -18,10 +18,12 @@ export default function ConversationSearchModal({ open, activeId, onSelect, onCl
 
     // Focus input when modal opens and clear search on close
     useEffect(() => {
-        if (open) {
+        if (!open) return
+        const timer = setTimeout(() => {
             setQuery('')
-            setTimeout(() => inputRef.current?.focus(), 50)
-        }
+            inputRef.current?.focus()
+        }, 50)
+        return () => clearTimeout(timer)
     }, [open])
 
     // Close on Escape

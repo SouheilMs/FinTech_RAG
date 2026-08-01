@@ -1,21 +1,17 @@
 import { useState } from 'react'
-import {
-    GitBranch, GitCommit, ExternalLink,
-    RefreshCw, Trash2, Sparkles,
-    Loader2, FileCode, Database, ChevronDown, ChevronUp,
-} from 'lucide-react'
+import { GitBranch, GitCommit, RefreshCw, Trash2, Sparkles, Loader2, FileCode, Database, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { formatDate } from '@/utils/format'
 import RepositoryStatusBadge from './RepositoryStatusBadge'
 import type { GitRepository } from '@/types'
 
 interface Props {
-    repo:        GitRepository
-    onSummary:   (id: number) => void
-    onReindex:   (id: number) => Promise<void>
-    onDelete:    (id: number) => Promise<void>
+    repo: GitRepository
+    onSummary: (id: number) => void
+    onReindex: (id: number) => Promise<void>
+    onDelete: (id: number) => Promise<void>
     isReindexing: boolean
-    isDeleting:   boolean
+    isDeleting: boolean
 }
 
 const IN_PROGRESS = ['PENDING', 'CLONING', 'INDEXING']

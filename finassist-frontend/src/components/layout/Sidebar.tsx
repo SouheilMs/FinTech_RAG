@@ -13,7 +13,7 @@ const MAX_SIDEBAR_CONVERSATIONS = 10
 export default function Sidebar() {
     const { username, email, role, isAdmin, logout } = useAuth()
     const { activeId, setActiveId } = useConversationContext()
-    const { conversations, renameConversation, pinConversation, deleteConversation, invalidate } = useConversations()
+    const { conversations, renameConversation, pinConversation, deleteConversation } = useConversations()
     const navigate = useNavigate()
 
     const [confirmLogout, setConfirmLogout] = useState(false)

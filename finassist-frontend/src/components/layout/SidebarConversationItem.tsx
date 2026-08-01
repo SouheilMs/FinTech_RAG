@@ -7,14 +7,14 @@ interface Props {
     conversation: Conversation
     isActive: boolean
     onSelect: () => void
-    onRename: (title: string) => Promise<void>
-    onPin: (pinned: boolean) => Promise<void>
+    onRename: (title: string) => Promise<any>
+    onPin: (pinned: boolean) => Promise<any>
     onDelete: () => Promise<void>
 }
 
 export default function SidebarConversationItem({ conversation, isActive, onSelect, onRename, onPin, onDelete }: Props) {
     const [isRenaming, setRenaming] = useState(false)
-    const [draft, setDraft] = useState(conversation.title)
+    const [draft, setDraft] = useState('')
     const [confirmDelete, setConfirmDelete] = useState(false)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -24,14 +24,9 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
     const committingRef = useRef(false)
 
     useEffect(() => {
-        setDraft(conversation.title)
-    }, [conversation.title])
-
-    useEffect(() => {
         if (isRenaming) {
-            committingRef.current = false
-            setError(null)
-            setTimeout(() => inputRef.current?.focus(), 0)
+            inputRef.current?.focus()
+            inputRef.current?.select()
         }
     }, [isRenaming])
 
@@ -42,38 +37,25 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
     }
 
     const cancelRename = () => {
-        if (committingRef.current) return
-        setDraft(conversation.title)
+        setDraft('')
         setRenaming(false)
-        setError(null)
     }
 
     const commitRename = async () => {
-        if (committingRef.current) return
         const title = draft.trim()
         if (!title) {
-            cancelRename()
-            return
-        }
-
-        if (title === conversation.title) {
             setRenaming(false)
             return
         }
-
-        committingRef.current = true
-        setBusy(true)
-        setError(null)
-
-        try {
-            await onRename(title)
-            setRenaming(false)
-        } catch {
-            setError('Rename failed')
-            committingRef.current = false
-        } finally {
-            setBusy(false)
+        if (title !== conversation.title) {
+            setBusy(true)
+            try {
+                await onRename(title)
+            } finally {
+                setBusy(false)
+            }
         }
+        setRenaming(false)
     }
 
     const handleKey = (e: KeyboardEvent<HTMLInputElement>) => {
