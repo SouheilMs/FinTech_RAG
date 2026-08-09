@@ -101,10 +101,16 @@ public class ConversationController {
                         }
                     },
                     error -> {
-                        log.error("Streaming error for conversation {}: {}", id, error.getMessage());
-                        try { emitter.send(SseEmitter.event().name("error").data(error.getMessage())); }
-                        catch (IOException ignored) {}
-                        emitter.completeWithError(error);
+                        log.error("Streaming error for conversation {}", id, error);
+                        try {
+                            emitter.send( SseEmitter.event()
+                                            .name("error")
+                                            .data("Failed to generate the response."));
+                        } catch (IOException ignored) {
+                            log.warn("Could not send SSE error event");
+                        } finally {
+                            emitter.complete();
+                        }
                     },
                     () -> {
                         try {
@@ -126,10 +132,16 @@ public class ConversationController {
             );
 
         } catch (Exception e) {
-            log.error("Failed to initiate conversation stream {}: {}", id, e.getMessage());
-            emitter.completeWithError(e);
+        log.error("Failed to initiate conversation stream {}", id, e);
+        try {
+            emitter.send(SseEmitter.event().name("error").data("Failed to start the conversation.")
+            );
+        } catch (IOException ignored) {
+            log.warn("Could not send initial SSE error event");
+        } finally {
+            emitter.complete();
         }
-
+    }
         emitter.onTimeout(emitter::complete);
         emitter.onError(e -> log.error("SSE error: {}", e.getMessage()));
         return emitter;

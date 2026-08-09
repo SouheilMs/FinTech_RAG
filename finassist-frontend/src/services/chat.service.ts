@@ -12,10 +12,10 @@ export const chatService = {
   async streamQuestion(
       question: string,
       callbacks: {
-        onToken:   (token: string)              => void
+        onToken: (token: string) => void
         onSources: (sources: SourceReference[]) => void
-        onDone:    ()                            => void
-        onError:   (message: string)            => void
+        onDone:() => void
+        onError: (message: string) => void
       }
   ): Promise<void> {
     try {
@@ -25,7 +25,7 @@ export const chatService = {
       return
     }
 
-    const baseUrl = '/api'
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
 
     let response: Response
     try {
@@ -33,7 +33,7 @@ export const chatService = {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Accept':        'text/event-stream',
+          'Accept': 'text/event-stream',
           'Cache-Control': 'no-cache',
           'Authorization': `Bearer ${keycloak.token ?? ''}`,
         },

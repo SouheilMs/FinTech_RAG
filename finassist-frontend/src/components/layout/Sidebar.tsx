@@ -21,8 +21,8 @@ export default function Sidebar() {
 
     const navItems = [
         { to: '/', icon: MessageSquare, label: 'AI Assistant', show: true },
-        { to: '/documents', icon: FileText, label: 'Documents', show: isAdmin },
-        { to: '/repositories', icon: GitBranch, label: 'Repositories', show: isAdmin },
+        { to: '/documents', icon: FileText, label: 'Documents', show: true },
+        { to: '/repositories', icon: GitBranch, label: 'Repositories', show: true },
         { to: '/users', icon: Users, label: 'Users', show: isAdmin },
     ].filter(i => i.show)
 
@@ -30,7 +30,7 @@ export default function Sidebar() {
 
     const handleConversationSelect = (id: string) => {
         setActiveId(id)
-        navigate('/')
+        navigate(`/conversations/${id}`)
     }
 
     return (

@@ -10,23 +10,195 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres -d fintech_rag" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      app-network:
+        aliases:
+          - postgres
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
-    container_name: finassist-keycloak
-    command: start-dev --import-realm
+      image: quay.io/keycloak/keycloak:26.0
+      container_name: finassist-keycloak
+      command: start-dev --import-realm
+      environment:
+        KC_HOSTNAME: http://localhost:8180
+        KC_PROXY_HEADERS: xforwarded
+        KC_HOSTNAME_STRICT: false
+        KC_HTTP_ENABLED: true
+        KEYCLOAK_ADMIN: admin
+        KEYCLOAK_ADMIN_PASSWORD: admin
+      ports:
+        - "8180:8080"
+      volumes:
+        - ./keycloak:/opt/keycloak/data/import
+        - keycloak_data:/opt/keycloak/data
+      healthcheck:
+        test: [ "CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080" ]
+        interval: 20s
+        timeout: 10s
+        retries: 5
+      networks:
+        app-network:
+          aliases:
+            - keycloak
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    extra_hosts:
+      - "localhost:host-gateway"
+    image: finassist-backend:latest
+    env_file:
+      - .env
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/fintech_rag}
+      KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:-finassist-admin}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:-Eup7pbBoCPfPAs7ol60Xb70uecGfNKyQ}
+      KEYCLOAK_SERVER_URL: ${KEYCLOAK_SERVER_URL:-http://finassist-keycloak:8080}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:-http://localhost:8180/realms/finassist}
+      KEYCLOAK_JWK_SET_URI: ${KEYCLOAK_JWK_SET_URI:-http://finassist-keycloak:8080/realms/finassist/protocol/openid-connect/certs}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      DOCS_DIRECTORY: ${DOCS_DIRECTORY:-/app/data/documents}
+      REPOSITORY_STORAGE_PATH: ${REPOSITORY_STORAGE_PATH:-/app/storage/repositories}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom}
     ports:
-      - "8180:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     volumes:
-      - ./keycloak:/opt/keycloak/data/import
+      - backend_documents:/app/data/documents
+      - backend_repositories:/app/storage/repositories
+      - backend_logs:/app/logs
+    restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1" ]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 60s
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    networks:
+      app-network:
+        aliases:
+          - backend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2G
+
+  frontend:
+    build:
+      context: ./finassist-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_KEYCLOAK_URL: http://localhost:8180
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-finassist}
+        VITE_KEYCLOAK_CLIENT: ${VITE_KEYCLOAK_CLIENT:-finassist-app}
+    image: finassist-frontend:latest
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:80 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      app-network:
+        aliases:
+          - frontend
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 512M
+
+  ollama:
+    image: ollama/ollama:0.11.7
+    container_name: finassist-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "ollama", "list" ]
       interval: 20s
       timeout: 10s
-      retries: 5
+      retries: 10
+      start_period: 30s
+    networks:
+      app-network:
+        aliases:
+          - ollama
+
+  ollama-init:
+    image: ollama/ollama:0.11.7
+    container_name: finassist-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "
+      echo 'Waiting for Ollama...';
+      until ollama list >/dev/null 2>&1; do
+        echo 'Ollama not ready...';
+        sleep 2;
+      done;
+      echo 'Ollama is ready';
+      ollama pull nomic-embed-text;
+      ollama pull gemma2:2b;
+      echo 'Models downloaded';
+      "
+    networks:
+      app-network:
+        aliases:
+          - ollama-init
 
 volumes:
   pgdata:
+  keycloak:
+  keycloak_data:
+  backend_documents:
+  backend_repositories:
+  backend_logs:
+  ollama_data:
+
+networks:
+  app-network:
+    name: ${DOCKER_SHARED_NETWORK:-fintech-rag-network}
+    driver: bridge

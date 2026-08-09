@@ -25,6 +25,9 @@ function AppLayout() {
               <Route path="/" element={
                 <ProtectedRoute><ChatPage /></ProtectedRoute>
               }/>
+                <Route path="/conversations/:conversationId" element={
+                    <ProtectedRoute><ChatPage /></ProtectedRoute>
+                }/>
               <Route path="/documents" element={
                 <ProtectedRoute><DocumentsPage /></ProtectedRoute>
               }/>

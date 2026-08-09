@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import ChatWindow from '@/components/chat/ChatWindow'
 import ChatInput from '@/components/chat/ChatInput'
@@ -8,9 +9,18 @@ import { useConversations } from '@/hooks/useConversations'
 
 export default function ChatPage() {
   const { activeId, setActiveId } = useConversationContext()
+  const navigate = useNavigate()
+  const { conversationId } = useParams()
   const { createConversation, invalidate } = useConversations()
   const { messages, isThinking, isLoadingHistory, sendMessage } = useConversationChat(activeId)
   const [draft, setDraft] = useState('')
+  useEffect(() => {
+    if (conversationId && conversationId !== activeId) {
+      setActiveId(conversationId)
+      return
+    }
+    if (!conversationId && activeId) setActiveId(null)
+  }, [conversationId, activeId, setActiveId])
 
   const submit = useCallback(async () => {
     if (!draft.trim() || isThinking) return
@@ -23,6 +33,7 @@ export default function ChatPage() {
       try {
         const conv = await createConversation(q)
         setActiveId(conv.id)
+        navigate(`/conversations/${conv.id}`)
         await sendMessage(q, conv.id)
         invalidate()
       } catch {
@@ -32,7 +43,7 @@ export default function ChatPage() {
       await sendMessage(q)
       invalidate()
     }
-  }, [draft, isThinking, activeId, createConversation, setActiveId, sendMessage, invalidate])
+  }, [draft, isThinking, activeId, createConversation, setActiveId, sendMessage, invalidate, navigate])
 
   const suggest = useCallback((q: string) => setDraft(q), [])
 
@@ -47,7 +58,7 @@ export default function ChatPage() {
               </p>
               {/* New conversation button — replaces the old "Clear conversation" */}
               <button
-                  onClick={() => { setActiveId(null); setDraft('') }}
+                  onClick={() => { setActiveId(null); setDraft(''); navigate('/') }}
                   className="flex items-center gap-1.5 text-xs text-text-muted hover:text-primary transition-colors"
               >
                 <Plus size={12} />

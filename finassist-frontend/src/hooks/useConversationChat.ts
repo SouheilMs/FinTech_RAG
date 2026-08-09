@@ -21,20 +21,33 @@ export function useConversationChat(conversationId: string | null) {
     const [isThinking, setThinking] = useState(false)
     const [isLoadingHistory, setLoadingHistory] = useState(false)
     const pendingSources = useRef<SourceReference[]>([])
+    const isStreamingRef = useRef(false)
+    const historyRequestRef = useRef(0)
     // Ref lets sendMessage read the latest conversationId without stale closures
     const convIdRef= useRef<string | null>(conversationId)
 
     useEffect(() => {
         convIdRef.current = conversationId
+        const requestId = ++historyRequestRef.current
         if (!conversationId) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setMessages([]);
+            setLoadingHistory(false)
             return }
         setLoadingHistory(true)
         conversationService.getMessages(conversationId)
-            .then(msgs => setMessages(msgs.map(toUiMessage)))
-            .catch(() => setMessages([]))
-            .finally(() => setLoadingHistory(false))
+            .then(msgs => {
+                if (requestId !== historyRequestRef.current || isStreamingRef.current) return
+                setMessages(msgs.map(toUiMessage))
+            })
+            .catch(() => {
+                if (requestId !== historyRequestRef.current || isStreamingRef.current) return
+                setMessages([])
+            })
+            .finally(() => {
+                if (requestId !== historyRequestRef.current) return
+                setLoadingHistory(false)
+            })
     }, [conversationId])
 
     const sendMessage = useCallback(async (question: string, overrideId?: string) => {
@@ -42,6 +55,7 @@ export function useConversationChat(conversationId: string | null) {
         if (!id || !question.trim() || isThinking) return
 
         pendingSources.current = []
+        isStreamingRef.current = true
 
         // Optimistic user bubble
         setMessages(prev => [...prev, {
@@ -71,11 +85,13 @@ export function useConversationChat(conversationId: string | null) {
                     setMessages(prev => prev.map(m =>
                         m.id === aiId
                             ? { ...m, isLoading: false, sources: m.sources ?? pendingSources.current } : m ))
+                    isStreamingRef.current = false
                     setThinking(false)
                 },
                 onError: (msg) => {
                     setMessages(prev => prev.map(m =>
                         m.id === aiId ? { ...m, content: `⚠️ ${msg}`, isLoading: false } : m))
+                    isStreamingRef.current = false
                     setThinking(false)
                 },
             })
@@ -83,6 +99,7 @@ export function useConversationChat(conversationId: string | null) {
             const msg = (e as { message?: string }).message ?? 'Streaming failed'
             setMessages(prev => prev.map(m =>
                 m.id === aiId ? { ...m, content: `⚠️ ${msg}`, isLoading: false } : m))
+            isStreamingRef.current = false
             setThinking(false)
         }
     }, [isThinking])

@@ -1,0 +1,12 @@
+.git
+.github
+target
+data
+storage
+logs
+.idea
+*.iml
+*.log
+.env
+finassist-frontend/node_modules
+finassist-frontend/dist

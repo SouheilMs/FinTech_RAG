@@ -1,9 +1,8 @@
 import Keycloak from 'keycloak-js'
 
-// One instance shared across the entire app
 const keycloak = new Keycloak({
-    url:       'http://localhost:8180',
-    realm:     'finassist',
-    clientId: 'finassist-app',
+    url: import.meta.env.VITE_KEYCLOAK_URL || 'http://localhost:8180',
+    realm: import.meta.env.VITE_KEYCLOAK_REALM || 'finassist',
+    clientId: import.meta.env.VITE_KEYCLOAK_CLIENT || 'finassist-app',
 })
 export default keycloak

@@ -1,38 +1,36 @@
 FROM eclipse-temurin:17-jdk-alpine AS builder
 
-WORKDIR /build
+WORKDIR /workspace
 
-COPY pom.xml .
 COPY .mvn/ .mvn/
-COPY mvnw .
-
+COPY mvnw pom.xml ./
 RUN chmod +x mvnw
 
-RUN ./mvnw dependency:go-offline --batch-mode --no-transfer-progress -q
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -q -DskipTests dependency:go-offline
 
 COPY src/ src/
-RUN ./mvnw package --batch-mode --no-transfer-progress -DskipTests -Dspring.profiles.active=prod
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw -B -DskipTests clean package
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
 
-RUN addgroup -S finassist && adduser -S finassist -G finassist
+RUN addgroup -S spring && adduser -S spring -G spring
 
 WORKDIR /app
 
-COPY --from=builder /build/target/*.jar app.jar
+COPY --from=builder /workspace/target/*.jar /app/app.jar
 
-USER finassist
+RUN mkdir -p \
+    /app/data/documents \
+    /app/storage/repositories \
+    /app/logs \
+    && chown -R spring:spring /app
 
-ENV JAVA_OPTS="\
-  -XX:+UseContainerSupport \
-  -XX:MaxRAMPercentage=75.0 \
-  -XX:+UseG1GC \
-  -Djava.security.egd=file:/dev/./urandom \
-  -Dspring.profiles.active=prod"
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-  CMD wget -qO- http://localhost:8080/actuator/health || exit 1
+USER spring:spring
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "exec java ${JAVA_OPTS} -jar /app/app.jar"]
