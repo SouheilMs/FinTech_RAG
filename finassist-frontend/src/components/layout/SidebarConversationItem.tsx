@@ -9,7 +9,7 @@ interface Props {
     onSelect: () => void
     onRename: (title: string) => Promise<any>
     onPin: (pinned: boolean) => Promise<any>
-    onDelete: () => Promise<void>
+    onDelete: () => void
 }
 
 export default function SidebarConversationItem({ conversation, isActive, onSelect, onRename, onPin, onDelete }: Props) {
@@ -80,7 +80,7 @@ export default function SidebarConversationItem({ conversation, isActive, onSele
         e.stopPropagation()
         setBusy(true)
         try {
-            await onDelete()
+            onDelete()
         } catch {
             setError('Delete failed')
             setBusy(false)

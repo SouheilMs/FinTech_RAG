@@ -53,8 +53,6 @@ services:
     extra_hosts:
       - "localhost:host-gateway"
     image: finassist-backend:latest
-    env_file:
-      - .env
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/fintech_rag}

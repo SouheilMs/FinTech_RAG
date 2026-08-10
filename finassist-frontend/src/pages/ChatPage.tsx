@@ -1,26 +1,20 @@
-import { useState, useCallback, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useState, useCallback } from 'react'
 import { Plus } from 'lucide-react'
 import ChatWindow from '@/components/chat/ChatWindow'
 import ChatInput from '@/components/chat/ChatInput'
 import { useConversationContext } from '@/context/ConversationContext'
 import { useConversationChat } from '@/hooks/useConversationChat'
 import { useConversations } from '@/hooks/useConversations'
+import {useNavigate} from "react-router-dom";
 
 export default function ChatPage() {
   const { activeId, setActiveId } = useConversationContext()
+  const { createConversation, invalidate }   = useConversations()
   const navigate = useNavigate()
-  const { conversationId } = useParams()
-  const { createConversation, invalidate } = useConversations()
-  const { messages, isThinking, isLoadingHistory, sendMessage } = useConversationChat(activeId)
+  const { messages, isThinking, isLoadingHistory, sendMessage } =
+      useConversationChat(activeId)
+
   const [draft, setDraft] = useState('')
-  useEffect(() => {
-    if (conversationId && conversationId !== activeId) {
-      setActiveId(conversationId)
-      return
-    }
-    if (!conversationId && activeId) setActiveId(null)
-  }, [conversationId, activeId, setActiveId])
 
   const submit = useCallback(async () => {
     if (!draft.trim() || isThinking) return
@@ -28,8 +22,6 @@ export default function ChatPage() {
     setDraft('')
 
     if (!activeId) {
-      // No conversation selected — create one then send.
-      // The new ID is passed directly to avoid stale React state.
       try {
         const conv = await createConversation(q)
         setActiveId(conv.id)
@@ -37,28 +29,27 @@ export default function ChatPage() {
         await sendMessage(q, conv.id)
         invalidate()
       } catch {
-        setDraft(q)
+        setDraft(q) // Restore draft so the user can retry
       }
     } else {
       await sendMessage(q)
       invalidate()
     }
-  }, [draft, isThinking, activeId, createConversation, setActiveId, sendMessage, invalidate, navigate])
+  }, [draft, isThinking, activeId, createConversation, setActiveId, sendMessage, invalidate])
 
   const suggest = useCallback((q: string) => setDraft(q), [])
 
   return (
       <div className="flex flex-col h-[calc(100vh-3.5rem)]">
 
-        {/* Toolbar — same position as your original */}
+        {/* Toolbar */}
         {(messages.length > 0 || activeId) && (
             <div className="flex items-center justify-between px-4 md:px-8 py-2 border-b border-surface-border">
               <p className="text-xs text-text-muted">
                 {messages.length} message{messages.length !== 1 ? 's' : ''}
               </p>
-              {/* New conversation button — replaces the old "Clear conversation" */}
               <button
-                  onClick={() => { setActiveId(null); setDraft(''); navigate('/') }}
+                  onClick={() => { setActiveId(null); setDraft('') }}
                   className="flex items-center gap-1.5 text-xs text-text-muted hover:text-primary transition-colors"
               >
                 <Plus size={12} />
@@ -67,7 +58,7 @@ export default function ChatPage() {
             </div>
         )}
 
-        {/* Loading skeleton while history is being fetched */}
+        {/* Message area */}
         {isLoadingHistory ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="flex gap-1.5">

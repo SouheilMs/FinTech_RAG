@@ -15,7 +15,7 @@ export function useConversations(search?: string) {
 
     const createMutation = useMutation({
         mutationFn: (firstMessage: string) => conversationService.create(firstMessage),
-        onSuccess:  inv,
+        onSuccess: inv,
     })
 
     const renameMutation = useMutation({
@@ -32,12 +32,13 @@ export function useConversations(search?: string) {
 
     const deleteMutation = useMutation({
         mutationFn: (id: string) => conversationService.delete(id),
-        onSuccess:  inv,
+        onSuccess: inv,
     })
 
     return {
         conversations: query.data ?? [],
         isLoading: query.isLoading,
+        invalidate: inv,
 
         createConversation: (firstMessage: string) =>
             createMutation.mutateAsync(firstMessage),
@@ -50,7 +51,5 @@ export function useConversations(search?: string) {
 
         deleteConversation: (id: string) =>
             deleteMutation.mutateAsync(id),
-
-        invalidate: inv,
     }
 }

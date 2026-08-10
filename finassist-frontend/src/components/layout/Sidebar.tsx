@@ -13,7 +13,7 @@ const MAX_SIDEBAR_CONVERSATIONS = 10
 export default function Sidebar() {
     const { username, email, role, isAdmin, logout } = useAuth()
     const { activeId, setActiveId } = useConversationContext()
-    const { conversations, renameConversation, pinConversation, deleteConversation } = useConversations()
+    const { conversations, renameConversation, pinConversation, deleteConversation, invalidate } = useConversations()
     const navigate = useNavigate()
 
     const [confirmLogout, setConfirmLogout] = useState(false)
@@ -31,6 +31,15 @@ export default function Sidebar() {
     const handleConversationSelect = (id: string) => {
         setActiveId(id)
         navigate(`/conversations/${id}`)
+    }
+
+    const handleDelete = async (id: string) => {
+        await deleteConversation(id)
+        if (activeId === id) {
+            setActiveId(null)
+            navigate('/')
+        }
+        invalidate()
     }
 
     return (
@@ -108,10 +117,7 @@ export default function Sidebar() {
                                         onSelect={() => handleConversationSelect(conv.id)}
                                         onRename={title => renameConversation(conv.id, title)}
                                         onPin={pinned => pinConversation(conv.id, pinned)}
-                                        onDelete={async () => {
-                                            await deleteConversation(conv.id)
-                                            if (activeId === conv.id) setActiveId(null)
-                                        }}
+                                        onDelete={() => handleDelete(conv.id)}
                                     />
                                 )))}
 
