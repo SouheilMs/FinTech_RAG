@@ -6,9 +6,9 @@ import './index.css'
 
 keycloak
     .init({
-        onLoad:            'login-required', // redirects to Keycloak login if not authenticated
-        checkLoginIframe:  false,            // avoids iframe issues in dev
-        pkceMethod:        'S256',           // security best practice
+        onLoad: 'login-required',
+        checkLoginIframe: false,
+        pkceMethod: 'S256',
     })
     .then((authenticated) => {
         if (!authenticated) {

@@ -32,7 +32,7 @@ export function useConversationChat(conversationId: string | null) {
         conversationService
             .getMessages(conversationId)
             .then(msgs => {
-                if (!cancelled) { setMessages(msgs.map(toUiMessage)) }
+                if (!cancelled) { setMessages(msgs.map(toUiMessage))}
             })
             .catch(() => {
                 if (!cancelled) { setMessages([])}
@@ -41,6 +41,12 @@ export function useConversationChat(conversationId: string | null) {
                 if (!cancelled) { setLoadingHistory(false)}
             })
         return () => { cancelled = true }
+    }, [conversationId])
+    useEffect(() => {
+        if (!conversationId) {
+            setMessages([])
+            setLoadingHistory(false)
+        }
     }, [conversationId])
     const visibleMessages = conversationId ? messages : []
 

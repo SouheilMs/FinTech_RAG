@@ -1,11 +1,11 @@
 server:
-  port: ${SERVER_PORT:8080}
+  port: ${SERVER_PORT}
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/fintech_rag}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -23,16 +23,16 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/finassist}
-          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://keycloak:8080/realms/finassist/protocol/openid-connect/certs}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI}
 
   ai:
     ollama:
-      base-url: ${OLLAMA_URL:http://ollama:11434}
+      base-url: ${OLLAMA_URL}
       embedding:
-        model: ${EMBEDDING_MODEL:nomic-embed-text}
+        model: ${EMBEDDING_MODEL}
       chat:
-        model: ${LLM_MODEL:gemma2:2b}
+        model: ${LLM_MODEL}
         options:
           num-predict: 512
 
@@ -47,8 +47,8 @@ spring:
   servlet:
     multipart:
       enabled: true
-      max-file-size: ${MAX_UPLOAD_SIZE_MB:25}MB
-      max-request-size: ${MAX_UPLOAD_SIZE_MB:25}MB
+      max-file-size: ${MAX_UPLOAD_SIZE_MB}MB
+      max-request-size: ${MAX_UPLOAD_SIZE_MB}MB
 
   jackson:
     serialization:
@@ -56,21 +56,21 @@ spring:
 
 keycloak:
   admin:
-    server-url: ${KEYCLOAK_SERVER_URL:http://keycloak:8080}
-    realm: ${KEYCLOAK_REALM:finassist}
-    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:finassist-admin}
-    client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    server-url: ${KEYCLOAK_SERVER_URL}
+    realm: ${KEYCLOAK_REALM}
+    client-id: ${KEYCLOAK_ADMIN_CLIENT_ID}
+    client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
 
 app:
-  docs-directory: ${DOCS_DIRECTORY:data/documents}
-  retrieval-k: ${RETRIEVAL_K:3}
-  chunk-size-words: ${CHUNK_SIZE_WORDS:350}
-  chunk-overlap-words: ${CHUNK_OVERLAP_WORDS:35}
-  max-prompt-chars: ${MAX_PROMPT_CHARS:6000}
-  upload-write-chunk-bytes: ${UPLOAD_WRITE_CHUNK_BYTES:1048576}
-  upload-max-concurrency: ${UPLOAD_MAX_CONCURRENCY:1}
-  chat-max-concurrency: ${CHAT_MAX_CONCURRENCY:1}
-  admission-wait-seconds: ${ADMISSION_WAIT_SECONDS:1.0}
+  docs-directory: ${DOCS_DIRECTORY}
+  retrieval-k: ${RETRIEVAL_K}
+  chunk-size-words: ${CHUNK_SIZE_WORDS}
+  chunk-overlap-words: ${CHUNK_OVERLAP_WORDS}
+  max-prompt-chars: ${MAX_PROMPT_CHARS}
+  upload-write-chunk-bytes: ${UPLOAD_WRITE_CHUNK_BYTES}
+  upload-max-concurrency: ${UPLOAD_MAX_CONCURRENCY}
+  chat-max-concurrency: ${CHAT_MAX_CONCURRENCY}
+  admission-wait-seconds: ${ADMISSION_WAIT_SECONDS}
 
 springdoc:
   api-docs:
@@ -87,7 +87,7 @@ logging:
     com.finassistmini: DEBUG
 
 repository:
-  storage-path: ${REPOSITORY_STORAGE_PATH:storage/repositories}
+  storage-path: ${REPOSITORY_STORAGE_PATH}
   max-file-size-bytes: 1048576
   max-files-per-repo: 2000
   max-depth: 20

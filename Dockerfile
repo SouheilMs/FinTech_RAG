@@ -27,8 +27,6 @@ RUN mkdir -p \
     /app/logs \
     && chown -R spring:spring /app
 
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -Djava.security.egd=file:/dev/./urandom"
-
 EXPOSE 8080
 
 USER spring:spring
