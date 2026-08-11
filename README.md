@@ -1,183 +1,200 @@
-# finassist-mini
+# FinTech_RAG
 
-`finassist-mini` is an educational Retrieval-Augmented Generation (RAG) backend for financial PDF question answering.
+FinTech_RAG is a **Retrieval-Augmented Generation (RAG)** application designed to help developers interact with and understand their documents and source-code repositories using an AI assistant.
 
-The backend has been build with Java 17 + Spring Boot 3.3.5 + Spring AI:
+The system combines **document/repository indexing, vector search, conversation memory, and Large Language Models (LLMs)** to provide contextual answers based on the user's own data.
 
-1. Upload PDF documents.
-2. Parse page text.
-3. Split text into overlapping chunks.
-4. Generate embeddings with Spring AI + Ollama.
-5. Persist vectors locally in `data/vector-store.json`.
-6. Retrieve Top-K relevant chunks for a question.
-7. Ground an LLM prompt with retrieved evidence.
-8. Return answer + explicit sources.
+## 🎯 Main Goal
 
-## Project Structure
+The objective of FinTech_RAG is to provide an AI-powered assistant capable of:
+
+* Answering questions using the user's documents and code repositories.
+* Searching relevant content using semantic vector similarity.
+* Maintaining conversation history and context.
+* Streaming AI responses in real time.
+* Providing source references for generated answers.
+* Indexing Git repositories and analyzing their source code.
+* Keeping user data isolated through authentication and ownership.
+
+## 🏗️ Architecture
 
 ```text
-finassist-mini/
-├── src/main/java/com/finassistmini/
-│   ├── config/
-│   ├── dto/
-│   ├── model/
-│   ├── service/
-│   └── web/
-├── src/main/resources/application.yml
-├── data/documents/
-├── pom.xml
-├── .env.example
+                    ┌──────────────────┐
+                    │    React Frontend │
+                    │     Port: 3000    │
+                    └────────┬─────────┘
+                             │ REST / SSE
+                             ▼
+                    ┌──────────────────┐
+                    │  Spring Boot API │
+                    │     Port: 8080   │
+                    └───────┬───┬──────┘
+                            │   │
+              ┌─────────────┘   └─────────────┐
+              ▼                               ▼
+      ┌─────────────────┐             ┌──────────────┐
+      │ PostgreSQL      │             │   Ollama     │
+      │ + pgvector      │             │     LLM      │
+      └─────────────────┘             └──────────────┘
+              │
+              ▼
+      ┌─────────────────┐
+      │ Vector Embeddings│
+      │  + RAG Search    │
+      └─────────────────┘
+
+                    ┌──────────────────┐
+                    │     Keycloak     │
+                    │ Authentication   │
+                    └──────────────────┘
+```
+
+## 🛠️ Main Technologies
+
+### Backend
+
+* Java
+* Spring Boot
+* Spring AI
+* Spring Data JPA / Hibernate
+* PostgreSQL
+* pgvector
+* JGit
+* SSE for streaming responses
+
+### Frontend
+
+* React
+* TypeScript
+* Vite
+* React Router
+* TanStack Query
+* Tailwind CSS
+
+### AI
+
+* Ollama
+* LLMs such as Gemma
+* `nomic-embed-text` for embeddings
+* Retrieval-Augmented Generation (RAG)
+
+### Infrastructure
+
+* Docker / Docker Compose
+* PostgreSQL + pgvector
+* Keycloak
+* GitHub Actions
+
+## 🚀 Main Features
+
+### AI Chat
+
+Users can ask questions and receive AI-generated answers based on their indexed data.
+
+### RAG Search
+
+Relevant document or source-code chunks are retrieved from the vector database and provided to the LLM as context.
+
+### Document Management
+
+Users can upload and manage documents that are indexed for semantic search.
+
+### Git Repository Indexing
+
+Users can provide a Git repository which is cloned, scanned, chunked, embedded, and stored in the vector database.
+
+### Conversation History
+
+Conversations and messages are persisted, allowing users to continue previous discussions.
+
+### Streaming Responses
+
+AI responses are streamed progressively to the frontend using Server-Sent Events (SSE).
+
+### Source References
+
+Responses can include references to the documents or repository files used to generate the answer.
+
+### Authentication
+
+Keycloak provides authentication and user isolation. Users can only access their own conversations and indexed data.
+
+## 📁 Project Structure
+
+```text
+FinTech_RAG/
+│
+├── finassist-mini/              # Spring Boot backend
+│   ├── src/
+│   ├── Dockerfile
+│   └── pom.xml
+│
+├── finassist-frontend/          # React frontend
+│   ├── src/
+│   ├── Dockerfile
+│   └── package.json
+│
+├── docker-compose.yml            # Application infrastructure
+├── .github/                      # CI/CD workflows
 └── README.md
 ```
 
-## API Endpoints
+## 🔄 RAG Workflow
 
-### Documents
-
-- `POST /documents/upload` PDF only, returns `202 Accepted`
-- `GET /documents/jobs/{job_id}` poll ingestion status
-- `GET /documents`
-- `POST /documents/{id}/reindex`
-- `DELETE /documents/{id}`
-
-### Chat
-
-- `POST /chat`
-
-Request:
-
-```json
-{
-  "question": "What are the international transfer fees?"
-}
+```text
+Document / Git Repository
+          │
+          ▼
+      Extraction
+          │
+          ▼
+       Chunking
+          │
+          ▼
+     Embeddings
+          │
+          ▼
+ PostgreSQL + pgvector
+          │
+          │
+      User Question
+          │
+          ▼
+   Similarity Search
+          │
+          ▼
+   Relevant Chunks
+          │
+          ▼
+      LLM + Context
+          │
+          ▼
+   Streaming Response
 ```
 
-Response:
+## 🔐 Configuration
 
-```json
-{
-  "answer": "...",
-  "sources": [
-    {
-      "document": "fees.pdf",
-      "page": 2
-    }
-  ]
-}
-```
+Application configuration is provided through environment variables.
 
-## Setup
+Sensitive configuration such as:
 
-Install Java 17 and Maven, then make sure Ollama is running:
+* Database credentials
+* Keycloak credentials
+* Ollama configuration
+* Application secrets
+
+should be stored outside the Git repository, for example through environment variables or deployment secrets.
+
+## ▶️ Running the Project
+
+The project is designed to run using Docker Compose.
 
 ```bash
-ollama pull tinyllama
-ollama pull nomic-embed-text
-ollama serve
+docker compose up --build
 ```
 
-Copy the environment file if needed:
+The main components are then available through their configured Docker services.
 
-```bash
-cp .env.example .env
-```
+## 📌 Project Status
 
-Run the API:
-
-```bash
-mvn spring-boot:run
-```
-
-Open the API at `http://127.0.0.1:8080`.
-
-Spring AI 1.0.0 is used with the Ollama starter.
-
-## Docker Deployment
-
-### Architecture
-
-This repository now provides Dockerized services for:
-
-- `backend` (Spring Boot, Java 17)
-- `frontend` (React/Vite build served by Nginx)
-- `ollama` (official Ollama image)
-
-PostgreSQL (`postgres`) and Keycloak (`keycloak`) are **not** recreated in this compose file and must already exist.
-
-All services communicate on one shared Docker network (`DOCKER_SHARED_NETWORK`, default `fintech-rag-network`) using service names:
-
-- backend -> `postgres:5432`
-- backend -> `keycloak:8080`
-- backend -> `ollama:11434`
-- frontend -> `backend:8080` (via Nginx `/api` proxy)
-
-### Prerequisites
-
-1. Create environment file:
-
-```bash
-cp .env.example .env
-```
-
-2. Ensure shared network exists:
-
-```bash
-docker network create fintech-rag-network
-```
-
-3. Ensure existing PostgreSQL and Keycloak containers are attached to that network with resolvable names `postgres` and `keycloak`.
-
-### Build and Start
-
-```bash
-docker compose up --build -d
-```
-
-### Stop
-
-```bash
-docker compose down
-```
-
-### Rebuild
-
-```bash
-docker compose down
-docker compose build --no-cache
-docker compose up -d
-```
-
-### Logs and Health
-
-```bash
-docker compose ps
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f ollama
-```
-
-Health checks:
-
-- backend: `GET /actuator/health`
-- frontend: `GET /`
-- ollama: `GET /api/tags`
-
-### Persistent Volumes
-
-- `backend_documents` -> uploaded documents
-- `backend_repositories` -> repository clone/indexing data
-- `backend_logs` -> backend logs
-- `ollama_data` -> Ollama models
-
-Data is retained across container restarts.
-
-### Troubleshooting
-
-- **Backend unhealthy**: verify PostgreSQL/Keycloak are reachable as `postgres` and `keycloak` on the shared network.
-- **Frontend cannot call API**: verify backend health and Nginx proxy route `/api`.
-- **Keycloak login fails**: verify `VITE_KEYCLOAK_URL`, `KEYCLOAK_ISSUER_URI`, and realm/client values.
-- **Ollama unavailable**: verify `OLLAMA_URL=http://ollama:11434` and Ollama container health.
-- **Network DNS issues**: inspect network membership:
-  ```bash
-  docker network inspect fintech-rag-network
-  ```
+FinTech_RAG is an evolving RAG platform focused on **AI-assisted document and code understanding**, with an architecture designed to support additional AI models, repositories, document types, and conversation features.
